@@ -1,5 +1,6 @@
 import re # Import the regular expressions module
 import ast # Import the abstract syntax tree module
+from sympy import parse_expr # Import the abstract syntax tree module
 
 def split_equation(equation: str) -> tuple[str, str]:
   """
@@ -161,3 +162,7 @@ def linearize_ast(node) -> tuple[float, float]:
 
         raise ValueError("Unsupported binary operator.")
     raise ValueError("Unsupported expression node.")
+
+def reduce_linear(expr: str) -> tuple[float, float]:
+    node = parse_expr(expr)
+    return linearize_ast(node)
