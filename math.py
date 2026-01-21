@@ -1,6 +1,9 @@
 import math as m
 
-# NOTE: This file keeps all logic in one module for now; helpers are grouped by purpose.
+from torch import fix_
+
+def fix_zero(value, eps=1e-12):
+    return 0.0 if abs(value) < eps else value
 
 def quadratic(a, b, c):
   """
@@ -17,7 +20,7 @@ def quadratic(a, b, c):
   # Calculate the discriminant (b^2 - 4ac)
   discriminant = (b**2) - (4*a*c)
   # Check for real roots
-  if discriminant < 0:
+  if discriminant < 0: 
       return [] # No real roots
   sqr = m.sqrt(discriminant) # Calculate the square root of the discriminant
   bottom = 2*a # Calculate the denominator (2a)
@@ -36,13 +39,8 @@ def equation_strip(lhs: str, rhs: str) -> tuple[str, str]:
 
     combined = lhs + rhs
 
-    # Allow the function name "abs" by removing it before validation
-    combined_without_abs = combined.replace("abs", "")
-
-    # Now only 'x' is allowed as a remaining letter
-    for ch in combined_without_abs:
-        if ch.isalpha() and ch != "x":
-            raise ValueError("Only the variable 'x' (and abs(...)) is supported in this solver.")
+    if any(char not in "0123456789xX+-*/." for char in combined):
+        raise ValueError("Equation contains invalid characters.")
 
     return lhs, rhs
 
@@ -171,20 +169,12 @@ def solve_linear(equation):
   b = bL - bR # Calculate the constant term
 
   if a != 0: # If the coefficient of 'x' is not zero
-    return [-b / a] # Return the single root
+    return [fix_zero(-b / a)] # Return the single root
 
   if b == 0: # If both 'a' and 'b' are zero (e.g., 0=0)
     return ["ALL_REAL_NUMBERS"] # The equation is an identity
 
   return [] # If 'a' is zero and 'b' is not zero (e.g., 0=5), there is no solution
-
-def is_abs_wrapped(expr: str) -> bool:
-    # Quick structural check; assumes no extra whitespace.
-    return expr.startswith("abs(") and expr.endswith(")")
-
-def unwrap_abs(expr: str) -> str:
-    # Strip the "abs(" prefix and trailing ")".
-    return expr[4:-1]
 
 def solve_linear_from_coeffs(a, b):
     """
@@ -196,81 +186,6 @@ def solve_linear_from_coeffs(a, b):
     if b == 0:
         return ["ALL_REAL_NUMBERS"]
     return []
-
-def solve_absolute(equation):
-    """
-    Solves absolute value equations:
-    1) abs(A) = B        (B constant)
-    2) abs(A) = abs(C)
-    Where A and C are linear expressions.
-    """
-
-    lhs, rhs = split_equation(equation)
-
-    # Detect whether each side is wrapped in abs().
-    lhs_is_abs = is_abs_wrapped(lhs)
-    rhs_is_abs = is_abs_wrapped(rhs)
-
-    solutions = []
-
-    # --------------------------------------------------
-    # Case 1: abs(A) = abs(C)
-    # --------------------------------------------------
-    if lhs_is_abs and rhs_is_abs:
-        # Both sides are absolute values: solve A = C and A = -C.
-        A = unwrap_abs(lhs)
-        C = unwrap_abs(rhs)
-
-        a1, b1 = reduce_linear(A)
-        a2, b2 = reduce_linear(C)
-
-        # Case A = C  → (a1 - a2)x + (b1 - b2) = 0
-        sol1 = solve_linear_from_coeffs(a1 - a2, b1 - b2)
-        solutions.extend(sol1)
-
-        # Case A = -C → (a1 + a2)x + (b1 + b2) = 0
-        sol2 = solve_linear_from_coeffs(a1 + a2, b1 + b2)
-        solutions.extend(sol2)
-
-        # Unique and sort solutions for stable output.
-        return sorted(set(solutions))
-
-    # --------------------------------------------------
-    # Case 2: abs(A) = B   (only one side abs)
-    # --------------------------------------------------
-    if lhs_is_abs:
-        A = unwrap_abs(lhs)
-        other = rhs
-    elif rhs_is_abs:
-        A = unwrap_abs(rhs)
-        other = lhs
-    else:
-        raise ValueError("No absolute value detected")
-
-    # Reduce both sides
-    aA, bA = reduce_linear(A)
-    aB, bB = reduce_linear(other)
-
-    # RHS must be constant at this level
-    if aB != 0:
-        raise ValueError("Right-hand side of abs equation must be a constant")
-
-    B = bB
-
-    # abs(...) cannot equal negative
-    if B < 0:
-        return []
-
-    # Case A = B  → aA x + (bA - B) = 0
-    sol1 = solve_linear_from_coeffs(aA, bA - B)
-    solutions.extend(sol1)
-
-    # Case A = -B → aA x + (bA + B) = 0
-    sol2 = solve_linear_from_coeffs(aA, bA + B)
-    solutions.extend(sol2)
-
-    # Unique and sort solutions for stable output.
-    return sorted(set(solutions))
 
 def solve(equation, xmin=None, xmax=None):
   """
@@ -287,3 +202,6 @@ def solve(equation, xmin=None, xmax=None):
           return solve_linear(equation) # If it's a string, attempt to solve it as a linear equation
   else:
       raise TypeError("Unsupported equation type") # Raise an error for unsupported equation types
+
+print(solve("2x + 3 = 7")) # Example usage
+print(solve("2x + 7 = 7"))
