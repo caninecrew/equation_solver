@@ -46,6 +46,13 @@ def _dedupe_reals(values, eps=1e-7):
       deduped.append(v)
   return deduped
 
+def roots(coeffs):
+  """
+  Returns complex roots (decimal approximations) for a polynomial.
+  coeffs: list ordered high-to-low (e.g., [a, b, c] for ax^2+bx+c).
+  """
+  return _durand_kerner(coeffs)
+
 def real_roots(coeffs):
   """
   Returns real roots (decimal approximations) for a polynomial.

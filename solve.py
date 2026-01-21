@@ -36,9 +36,12 @@ def solve(equation, xmin=None, xmax=None):
                   degree = len(coeffs) - 1
                   if degree >= 2:
                           if degree == 2:
-                                  return quadratic.quadratic(coeffs[2], coeffs[1], coeffs[0])
-                          roots = polynomial.real_roots(list(reversed(coeffs)))
-                          return linear.format_solutions(roots)
+                                  roots = quadratic.quadratic(coeffs[2], coeffs[1], coeffs[0])
+                          else:
+                                  roots = polynomial.roots(list(reversed(coeffs)))
+                          if any(abs(r.imag) > 1e-7 for r in roots):
+                                  return linear.format_complex_solutions(roots)
+                          return linear.format_solutions([r.real for r in roots])
           except ValueError:
                   pass
 

@@ -1,4 +1,4 @@
-import math as m
+import cmath
 
 def quadratic(a, b, c):
   """
@@ -13,10 +13,7 @@ def quadratic(a, b, c):
     list[float]: A list containing the two roots as decimals.
   """
   discriminant = (b**2) - (4*a*c)
-  if discriminant < 0:
-      return []
-
-  sqr = m.sqrt(discriminant)
+  sqr = cmath.sqrt(discriminant)
   bottom = 2 * a
   positive = (-b + sqr) / bottom
   negative = (-b - sqr) / bottom

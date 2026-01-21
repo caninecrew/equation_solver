@@ -107,6 +107,11 @@ def format_solutions(solutions):
     return f"{{{_fmt_number(solutions[0])}}}"
   return "{" + ", ".join(_fmt_number(v) for v in solutions) + "}"
 
+def format_complex_solutions(solutions):
+  if not solutions:
+    return "no solution"
+  return "{" + ", ".join(_fmt_complex(v) for v in solutions) + "}"
+
 def _constraint_always_true(constraint):
   if not isinstance(constraint, parsing.ast.Compare):
     return False
@@ -271,6 +276,17 @@ def _fmt_number(value):
   if float(value).is_integer():
     return str(int(value))
   return str(value)
+
+def _fmt_complex(value):
+  real = value.real
+  imag = value.imag
+  if abs(imag) < 1e-9:
+    return _fmt_number(real)
+  real_text = _fmt_number(real) if abs(real) >= 1e-9 else "0"
+  imag_mag = abs(imag)
+  imag_text = _fmt_number(imag_mag)
+  sign = "+" if imag >= 0 else "-"
+  return f"{real_text} {sign} {imag_text}i"
 
 def _dedupe_and_sort(results, eps=1e-9):
   if not results:
