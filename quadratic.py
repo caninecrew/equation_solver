@@ -10,7 +10,7 @@ def quadratic(a, b, c):
     c (float): The constant term.
 
   Returns:
-    list[float]: A list containing the two roots as decimals.
+    list[complex]: A list containing the two roots (may be complex).
   """
   discriminant = (b**2) - (4*a*c)
   sqr = cmath.sqrt(discriminant)

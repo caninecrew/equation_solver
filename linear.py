@@ -16,10 +16,10 @@ def reduce_linear(expr):
 
 def solve_linear(equation):
   """
-  Solves a linear equation of the form ax + b = 0.
+  Solves a single-variable linear equation, including abs() cases.
   """
 
-  lhs, rhs = parsing.split_equation(equation) # Split the equation into left and right sides
+  lhs, rhs = parsing.split_equation(equation)
   lhs_ast = parsing.parse_expr(lhs)
   rhs_ast = parsing.parse_expr(rhs)
   expr_ast = parsing.ast.BinOp(
@@ -48,18 +48,18 @@ def solve_linear(equation):
           results.append(utils.fix_zero(sol))
     return _dedupe_and_sort(results)
 
-  aL, bL = reduce_linear(lhs) # Reduce the left-hand side to get 'a' and 'b'
-  aR, bR = reduce_linear(rhs) # Reduce the right-hand side to get 'a' and 'b'
-  a = aL - aR # Calculate the coefficient of 'x'
-  b = bL - bR # Calculate the constant term
+  aL, bL = reduce_linear(lhs)
+  aR, bR = reduce_linear(rhs)
+  a = aL - aR
+  b = bL - bR
 
-  if a != 0: # If the coefficient of 'x' is not zero
-    return _dedupe_and_sort([utils.fix_zero(-b / a)]) # Return the single root
+  if a != 0:
+    return _dedupe_and_sort([utils.fix_zero(-b / a)])
 
-  if b == 0: # If both 'a' and 'b' are zero (e.g., 0=0)
-    return ["ALL_REAL_NUMBERS"] # The equation is an identity
+  if b == 0:
+    return ["ALL_REAL_NUMBERS"]
 
-  return [] # If 'a' is zero and 'b' is not zero (e.g., 0=5), there is no solution
+  return []
 
 def solve_inequality(equation):
   """

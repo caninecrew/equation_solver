@@ -8,13 +8,12 @@ from typing import cast
 
 def solve(equation, xmin=None, xmax=None):
   """
-  Placeholder function for solving an equation.
-  This function is not yet implemented.
+  Solves equations, inequalities, or systems and returns formatted results.
 
   Args:
-    equation (str): The equation to solve.
-    xmin (float, optional): Minimum value for the solution range. Defaults to None.
-    xmax (float, optional): Maximum value for the solution range. Defaults to None.
+    equation (str | list[str] | tuple[str, ...]): Equation, inequality, or system.
+    xmin (float, optional): Lower bound for numeric root/interval searches.
+    xmax (float, optional): Upper bound for numeric root/interval searches.
   """
   if isinstance(equation, (list, tuple)):
           if not all(isinstance(e, str) for e in equation):
@@ -25,7 +24,7 @@ def solve(equation, xmin=None, xmax=None):
           except ValueError:
                   solutions = nonlinear.solve_nonlinear_system_all(equation)
                   return "[" + ", ".join("{" + ", ".join(f"{k}={v}" for k, v in sol.items()) + "}" for sol in solutions) + "]"
-  if isinstance(equation, str): # Check if the equation is a string
+  if isinstance(equation, str):
           # Expand chained equalities into a system.
           expanded = parsing.split_equalities(equation)
           if len(expanded) > 1:
@@ -98,8 +97,8 @@ def solve(equation, xmin=None, xmax=None):
           except ValueError:
                   pass
 
-          # Currently only linear equations are supported at this entry point.
-          solutions = linear.solve_linear(equation) # If it's a string, attempt to solve it as a linear equation
+          # Final fallback: linear solver for single-variable equations.
+          solutions = linear.solve_linear(equation)
           return linear.format_solutions(solutions)
   else:
-      raise TypeError("Unsupported equation type") # Raise an error for unsupported equation types
+      raise TypeError("Unsupported equation type")

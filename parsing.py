@@ -1,5 +1,5 @@
-import re # Import the regular expressions module
-import ast # Import the abstract syntax tree module
+import re
+import ast
 
 def split_equation(equation: str) -> tuple[str, str]:
   """
@@ -17,7 +17,7 @@ def split_equation(equation: str) -> tuple[str, str]:
       - If either side of the equation is empty after stripping whitespace.
   """
 
-  eq = equation.strip() # Remove leading/trailing whitespace from the full equation
+  eq = equation.strip()
 
   # Match '=' that is not part of '>=' or '<='.
   match = re.search(r"(?<![<>])=(?!=)", eq)
@@ -27,15 +27,15 @@ def split_equation(equation: str) -> tuple[str, str]:
     raise ValueError("Equation must contain exactly one '=' sign.")
 
   split_at = match.start()
-  lhs, rhs = eq[:split_at], eq[split_at + 1:] # Split at the standalone '=' sign
+  lhs, rhs = eq[:split_at], eq[split_at + 1:]
 
-  lhs = lhs.strip() # Remove leading/trailing whitespace from the left-hand side
-  rhs = rhs.strip() # Remove leading/trailing whitespace from the right-hand side
+  lhs = lhs.strip()
+  rhs = rhs.strip()
 
-  if lhs == "" or rhs == "": # Check if either side is empty after stripping
-    raise ValueError("Both sides of the equation must be non-empty.") # Raise an error if empty
+  if lhs == "" or rhs == "":
+    raise ValueError("Both sides of the equation must be non-empty.")
 
-  return equation_strip(lhs, rhs) # Further strip and validate variables using equation_strip
+  return equation_strip(lhs, rhs)
 
 def split_equalities(equation: str) -> list[str]:
   """
@@ -111,12 +111,12 @@ def normalize(expr: str) -> str:
   Returns:
     str: The normalized expression.
   """
-  expr = expr.replace(" ", "") # Remove all spaces from the expression
+  expr = expr.replace(" ", "")
 
-  if expr[0] not in "+-": # If the first character is not a '+' or '-'
-    expr = "+" + expr # Prepend a '+' to the expression
+  if expr[0] not in "+-":
+    expr = "+" + expr
 
-  return expr # Return the normalized expression
+  return expr
 
 def split_terms(expr: str) -> list[str]:
   """
@@ -129,16 +129,16 @@ def split_terms(expr: str) -> list[str]:
   Returns:
     list[str]: A list of terms, each including its leading sign.
   """
-  terms = [] # Initialize an empty list to store terms
-  start = 0 # Initialize the start index for slicing terms
+  terms = []
+  start = 0
 
-  for i in range(1, len(expr)): # Iterate from the second character to the end
-    if expr[i] in "+-": # If a '+' or '-' sign is found
-      terms.append(expr[start:i]) # Append the term found so far
-      start = i # Update the start index for the next term
+  for i in range(1, len(expr)):
+    if expr[i] in "+-":
+      terms.append(expr[start:i])
+      start = i
 
-  terms.append(expr[start:]) # Append the last term after the loop finishes
-  return terms # Return the list of terms
+  terms.append(expr[start:])
+  return terms
 
 def parse_expr(expr: str) -> ast.expr:
     """
@@ -150,7 +150,7 @@ def parse_expr(expr: str) -> ast.expr:
     Returns:
         ast.AST: The root AST node representing the expression.
     """
-    expr = insert_implicit_mul(expr)  # optional but recommended
+    expr = insert_implicit_mul(expr)
     expr = expr.replace("^", "**")
     tree = ast.parse(expr, mode="eval")
     return tree.body
@@ -311,7 +311,7 @@ def quadraticize_ast(node) -> tuple[float, float, float]:
         if isinstance(node.op, ast.Div):
             return div_poly(left, right)
         if isinstance(node.op, ast.Pow):
-            # Only allow x^2 or constant^2.
+            # Only allow constant exponents; x^2 supported.
             if right[1] != 0.0 or right[2] != 0.0:
                 raise ValueError("Exponent must be constant.")
             exp = right[0]
