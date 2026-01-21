@@ -120,3 +120,93 @@ def solve_nonlinear_system(equations, max_iter=50, tol=1e-8, guess=None, scan=(-
         break
 
   raise ValueError("Nonlinear solver did not converge.")
+
+def solve_nonlinear_system_all(equations, max_iter=50, tol=1e-8, scan=(-2.0, 2.0), scan_steps=3, eps=1e-6):
+  solutions = []
+  expr_asts = []
+  variables = set()
+  for eq in equations:
+    lhs, rhs = parsing.split_equation(eq)
+    lhs_ast = parsing.parse_expr(lhs)
+    rhs_ast = parsing.parse_expr(rhs)
+    expr_ast = parsing.ast.BinOp(
+      left=lhs_ast,
+      op=parsing.ast.Sub(),
+      right=rhs_ast,
+    )
+    expr_asts.append(expr_ast)
+    variables.update(parsing.get_variable_names(expr_ast))
+
+  vars_sorted = sorted(variables)
+  n = len(vars_sorted)
+  if len(expr_asts) != n:
+    raise ValueError("System must have the same number of equations as variables.")
+
+  lo, hi = scan
+  grid = [lo + (hi - lo) * (i / scan_steps) for i in range(scan_steps + 1)]
+  guesses = []
+  if n == 1:
+    for t in grid:
+      guesses.append([t])
+  else:
+    for i in range(len(grid)):
+      for j in range(len(grid)):
+        guesses.append([grid[i], grid[j]])
+
+  def fvec(xvec):
+    env = {v: xvec[i] for i, v in enumerate(vars_sorted)}
+    return [parsing.eval_expr_ast_with_env(expr, env) for expr in expr_asts]
+
+  for start in guesses:
+    x = start[:]
+    for _ in range(max_iter):
+      try:
+        fx = fvec(x)
+      except ValueError:
+        break
+      norm = sum(abs(v) for v in fx)
+      if norm < tol:
+        sol = {v: x[i] for i, v in enumerate(vars_sorted)}
+        if not any(all(abs(sol[k] - s[k]) < eps for k in sol) for s in solutions):
+          solutions.append(sol)
+        break
+
+      jacobian = []
+      for i in range(n):
+        row = []
+        for j in range(n):
+          h = 1e-6 * (1.0 + abs(x[j]))
+          xph = x[:]
+          xph[j] += h
+          try:
+            fph = fvec(xph)[i]
+          except ValueError:
+            fph = fx[i]
+          row.append((fph - fx[i]) / h)
+        row.append(-fx[i])
+        jacobian.append(row)
+
+      try:
+        delta = _solve_linear_system(jacobian)
+      except ValueError:
+        break
+
+      step = 1.0
+      improved = False
+      for _ in range(10):
+        trial = [x[i] + step * delta[i] for i in range(n)]
+        try:
+          trial_norm = sum(abs(v) for v in fvec(trial))
+        except ValueError:
+          trial_norm = float("inf")
+        if trial_norm < norm:
+          x = trial
+          improved = True
+          break
+        step *= 0.5
+      if not improved:
+        break
+
+  if not solutions:
+    raise ValueError("Nonlinear solver did not converge.")
+  return solutions

@@ -23,15 +23,38 @@ def solve(equation, xmin=None, xmax=None):
                   solutions = linear.solve_linear_system(equation)
                   return "{" + ", ".join(f"{k}={v}" for k, v in solutions.items()) + "}"
           except ValueError:
-                  solutions = nonlinear.solve_nonlinear_system(equation)
-                  return "{" + ", ".join(f"{k}={v}" for k, v in solutions.items()) + "}"
+                  solutions = nonlinear.solve_nonlinear_system_all(equation)
+                  return "[" + ", ".join("{" + ", ".join(f"{k}={v}" for k, v in sol.items()) + "}" for sol in solutions) + "]"
   if isinstance(equation, str): # Check if the equation is a string
           if any(op in equation for op in ["<=", ">=", "<", ">"]):
                   try:
                           intervals = linear.solve_inequality(equation)
                           return linear.format_intervals(intervals)
                   except ValueError:
-                          pass
+                          try:
+                                  constraints = linear.solve_inequality_system(equation)
+                                  return linear.format_halfspaces(constraints)
+                          except ValueError:
+                                  # Transcendental inequality fallback.
+                                  try:
+                                          exprs, ops = parsing.split_inequality(equation)
+                                          expr_asts = [parsing.parse_expr(expr) for expr in exprs]
+                                          intervals = [(-float("inf"), float("inf"), False, False)]
+                                          for idx, op in enumerate(ops):
+                                                  lhs_ast = expr_asts[idx]
+                                                  rhs_ast = expr_asts[idx + 1]
+                                                  expr_ast = parsing.ast.BinOp(
+                                                          left=cast(parsing.ast.expr, lhs_ast),
+                                                          op=parsing.ast.Sub(),
+                                                          right=cast(parsing.ast.expr, rhs_ast),
+                                                  )
+                                                  sign_intervals = transcendental.intervals_for_op(
+                                                          expr_ast, op, xmin or -10.0, xmax or 10.0
+                                                  )
+                                                  intervals = linear._intersect_interval_lists(intervals, sign_intervals)
+                                          return linear.format_intervals(intervals)
+                                  except ValueError:
+                                          pass
 
           # Try quadratic form first when possible.
           lhs, rhs = parsing.split_equation(equation)

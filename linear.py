@@ -101,6 +101,49 @@ def solve_inequality(equation):
 
   return _merge_intervals(intervals)
 
+def solve_inequality_system(equation):
+  """
+  Returns half-space constraints for multi-variable linear inequalities.
+  """
+  exprs, ops = parsing.split_inequality(equation)
+  expr_asts = [parsing.parse_expr(expr) for expr in exprs]
+  constraints = []
+  for idx, op in enumerate(ops):
+    lhs_ast = expr_asts[idx]
+    rhs_ast = expr_asts[idx + 1]
+    cL, kL = parsing.linearize_multi_ast(lhs_ast)
+    cR, kR = parsing.linearize_multi_ast(rhs_ast)
+    coeffs = {}
+    for key, val in cL.items():
+      coeffs[key] = coeffs.get(key, 0.0) + val
+    for key, val in cR.items():
+      coeffs[key] = coeffs.get(key, 0.0) - val
+    const = kL - kR
+    constraints.append((coeffs, op, -const))
+  return constraints
+
+def format_halfspaces(constraints):
+  """
+  Formats constraints like "2x + y <= 3".
+  """
+  parts = []
+  for coeffs, op, rhs in constraints:
+    terms = []
+    for var in sorted(coeffs.keys()):
+      coef = coeffs[var]
+      if abs(coef) < 1e-12:
+        continue
+      sign = "+" if coef > 0 else "-"
+      mag = abs(coef)
+      coef_text = "" if abs(mag - 1.0) < 1e-9 else _fmt_number(mag)
+      terms.append(f"{sign}{coef_text}{var}")
+    if not terms:
+      left = "0"
+    else:
+      left = " ".join(terms).lstrip("+")
+    parts.append(f"{left} {op} {_fmt_number(rhs)}")
+  return " and ".join(parts)
+
 def format_intervals(intervals):
   if not intervals:
     return "no solution"
