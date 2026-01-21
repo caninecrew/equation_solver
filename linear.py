@@ -22,29 +22,23 @@ def solve_linear(equation):
   lhs, rhs = parsing.split_equation(equation) # Split the equation into left and right sides
   lhs_ast = parsing.parse_expr(lhs)
   rhs_ast = parsing.parse_expr(rhs)
-  has_abs = parsing.find_abs_calls(lhs_ast) or parsing.find_abs_calls(rhs_ast)
-
-  if has_abs:
-    expr_ast = parsing.ast.BinOp(
-      left=cast(parsing.ast.expr, lhs_ast),
-      op=parsing.ast.Sub(),
-      right=cast(parsing.ast.expr, rhs_ast),
-    )
-    cases = parsing.build_abs_cases(expr_ast)
-    if not cases:
-      raise ValueError("abs() handling failed to build cases.")
-
+  expr_ast = parsing.ast.BinOp(
+    left=cast(parsing.ast.expr, lhs_ast),
+    op=parsing.ast.Sub(),
+    right=cast(parsing.ast.expr, rhs_ast),
+  )
+  cases = parsing.build_abs_cases(expr_ast)
+  if cases:
     results = []
-    for case_expr, constraint in cases:
+    for case_expr, constraints in cases:
       a, b = parsing.linearize_ast(case_expr)
       solutions = solve_linear_from_coeffs(a, b)
       for sol in solutions:
         if sol == "ALL_REAL_NUMBERS":
-          # Only keep if constraint is always true.
-          if _constraint_always_true(constraint):
+          if all(_constraint_always_true(c) for c in constraints):
             results.append(sol)
           continue
-        if parsing.eval_constraint(constraint, sol):
+        if all(parsing.eval_constraint(c, sol) for c in constraints):
           results.append(utils.fix_zero(sol))
     return results
 
@@ -67,7 +61,9 @@ def _constraint_always_true(constraint):
   if len(constraint.ops) != 1 or len(constraint.comparators) != 1:
     return False
 
-  diff = parsing.ast.BinOp(left=constraint.left, op=parsing.ast.Sub(), right=constraint.comparators[0])
+  diff = parsing.ast.BinOp(
+    left=constraint.left, op=parsing.ast.Sub(), right=constraint.comparators[0]
+  )
   a, b = parsing.linearize_ast(diff)
   if a != 0.0:
     return False

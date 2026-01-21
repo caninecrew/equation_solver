@@ -251,53 +251,59 @@ def find_abs_calls(node):
     visit(node)
     return found
 
-def replace_first_abs(node, replacement):
-    """
-    Returns (new_node, replaced) where replaced indicates whether an abs() was swapped. This function traverses an AST node and replaces the first occurrence of an abs() function call with a provided replacement node.
-    """
-    # If this node IS abs(...)
-    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "abs":
-        if len(node.args) != 1:
-            raise ValueError("abs() takes one argument.")
-        return replacement(node.args[0]), True
-
-    # Recurse into children (handle BinOp, UnaryOp, etc.)
-    if isinstance(node, ast.BinOp):
-        left, replaced = replace_first_abs(node.left, replacement)
-        if replaced:
-            return ast.BinOp(left=left, op=node.op, right=node.right), True
-        right, replaced = replace_first_abs(node.right, replacement)
-        return ast.BinOp(left=node.left, op=node.op, right=right), replaced
-
-    if isinstance(node, ast.UnaryOp):
-        operand, replaced = replace_first_abs(node.operand, replacement)
-        return ast.UnaryOp(op=node.op, operand=operand), replaced
-
-    return node, False
-
 def build_abs_cases(expr_ast):
-    def pos_repl(f):
-        return f  # +f
+    """
+    Expands abs() into piecewise cases. Returns a list of (expr_ast, constraints).
+    Each constraints entry is a list of Compare nodes to evaluate at a candidate x.
+    """
+    def expand(node):
+        if isinstance(node, ast.Call):
+            if not isinstance(node.func, ast.Name) or node.func.id != "abs":
+                raise ValueError("Only abs() calls are supported.")
+            if len(node.args) != 1:
+                raise ValueError("abs() takes one argument.")
+            inner_cases = expand(node.args[0])
+            cases = []
+            for inner_expr, inner_constraints in inner_cases:
+                pos_constraint = ast.Compare(
+                    left=inner_expr, ops=[ast.GtE()], comparators=[ast.Constant(0)]
+                )
+                neg_constraint = ast.Compare(
+                    left=inner_expr, ops=[ast.Lt()], comparators=[ast.Constant(0)]
+                )
+                cases.append((inner_expr, inner_constraints + [pos_constraint]))
+                cases.append(
+                    (ast.UnaryOp(op=ast.USub(), operand=inner_expr), inner_constraints + [neg_constraint])
+                )
+            return cases
 
-    def neg_repl(f):
-        return ast.UnaryOp(op=ast.USub(), operand=f)  # -f
+        if isinstance(node, ast.BinOp):
+            left_cases = expand(node.left)
+            right_cases = expand(node.right)
+            cases = []
+            for left_expr, left_constraints in left_cases:
+                for right_expr, right_constraints in right_cases:
+                    cases.append(
+                        (
+                            ast.BinOp(left=left_expr, op=node.op, right=right_expr),
+                            left_constraints + right_constraints,
+                        )
+                    )
+            return cases
 
-    expr_pos, did = replace_first_abs(expr_ast, pos_repl)
-    if not did:
-        return []
+        if isinstance(node, ast.UnaryOp):
+            operand_cases = expand(node.operand)
+            return [
+                (ast.UnaryOp(op=node.op, operand=expr), constraints)
+                for expr, constraints in operand_cases
+            ]
 
-    # constraint f >= 0
-    f = find_abs_calls(expr_ast)[0]  # or return f from replace_first_abs
-    constraint_pos = ast.Compare(left=f, ops=[ast.GtE()], comparators=[ast.Constant(0)])
+        if isinstance(node, ast.Constant) or isinstance(node, ast.Name):
+            return [(node, [])]
 
-    # constraint f < 0
-    expr_neg, _ = replace_first_abs(expr_ast, neg_repl)
-    constraint_neg = ast.Compare(left=f, ops=[ast.Lt()], comparators=[ast.Constant(0)])
+        raise ValueError("Unsupported expression node for abs expansion.")
 
-    return [
-        (expr_pos, constraint_pos),
-        (expr_neg, constraint_neg),
-    ]
+    return expand(expr_ast)
 
 def eval_linear_ast(node, x_value):
     # returns numeric value of the expression at x
