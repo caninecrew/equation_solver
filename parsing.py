@@ -37,15 +37,15 @@ def split_equation(equation: str) -> tuple[str, str]:
 
   return equation_strip(lhs, rhs) # Further strip and validate variables using equation_strip
 
-def split_inequality(equation: str) -> tuple[str, str, str]:
+def split_inequality(equation: str) -> tuple[list[str], list[str]]:
   """
-  Splits an inequality string into its left-hand side, operator, and right-hand side.
+  Splits an inequality string into segments (expr, op, expr), supporting chaining.
 
   Args:
     equation (str): The full inequality string (e.g., "2x + 3 <= 7").
 
   Returns:
-    tuple[str, str, str]: A tuple containing the left-hand side, operator, and right-hand side.
+    tuple[list[str], list[str]]: list of expressions and list of operators.
 
   Raises:
     ValueError:
@@ -53,22 +53,17 @@ def split_inequality(equation: str) -> tuple[str, str, str]:
       - If either side of the inequality is empty after stripping whitespace.
   """
   eq = equation.strip()
-  match = re.search(r"(<=|>=|<|>)", eq)
-  if not match:
-    raise ValueError("Inequality must contain exactly one comparison operator.")
-  op = match.group(1)
-  if re.search(r"(<=|>=|<|>)", eq[match.end():]):
-    raise ValueError("Inequality must contain exactly one comparison operator.")
+  parts = re.split(r"(<=|>=|<|>)", eq)
+  if len(parts) < 3:
+    raise ValueError("Inequality must contain at least one comparison operator.")
 
-  lhs, rhs = eq.split(op, 1)
-  lhs = lhs.strip()
-  rhs = rhs.strip()
+  exprs = [parts[i].strip() for i in range(0, len(parts), 2)]
+  ops = [parts[i].strip() for i in range(1, len(parts), 2)]
+  if len(exprs) != len(ops) + 1:
+    raise ValueError("Malformed inequality.")
 
-  if lhs == "" or rhs == "":
-    raise ValueError("Both sides of the inequality must be non-empty.")
-
-  lhs, rhs = equation_strip(lhs, rhs)
-  return lhs, op, rhs
+  exprs = [equation_strip(e, e)[0] for e in exprs]
+  return exprs, ops
 
 def equation_strip(lhs: str, rhs: str) -> tuple[str, str]:
 

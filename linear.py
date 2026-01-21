@@ -65,32 +65,41 @@ def solve_inequality(equation):
   """
   Solves a linear inequality and returns solution intervals.
   """
-  lhs, op, rhs = parsing.split_inequality(equation)
-  lhs_ast = parsing.parse_expr(lhs)
-  rhs_ast = parsing.parse_expr(rhs)
-  expr_ast = parsing.ast.BinOp(
-    left=cast(parsing.ast.expr, lhs_ast),
-    op=parsing.ast.Sub(),
-    right=cast(parsing.ast.expr, rhs_ast),
-  )
-  vars_found = parsing.get_variable_names(expr_ast)
-  if len(vars_found) > 1:
-    raise ValueError("Multiple variables are not supported in a single inequality.")
-  if len(vars_found) == 1 and "x" not in vars_found:
-    var_name = next(iter(vars_found))
-    expr_ast = parsing.replace_variable(expr_ast, var_name, "x")
+  exprs, ops = parsing.split_inequality(equation)
+  expr_asts = [parsing.parse_expr(expr) for expr in exprs]
+  intervals = [(-float("inf"), float("inf"), False, False)]
 
-  cases = parsing.build_abs_cases(expr_ast)
-  if cases:
-    intervals = []
-    for case_expr, constraints in cases:
-      a, b = parsing.linearize_ast(case_expr)
-      intervals.extend(_solve_linear_inequality_from_coeffs(a, b, op))
-      intervals = _filter_intervals_by_constraints(intervals, constraints)
-    return _merge_intervals(intervals)
+  for idx, op in enumerate(ops):
+    lhs_ast = expr_asts[idx]
+    rhs_ast = expr_asts[idx + 1]
+    expr_ast = parsing.ast.BinOp(
+      left=cast(parsing.ast.expr, lhs_ast),
+      op=parsing.ast.Sub(),
+      right=cast(parsing.ast.expr, rhs_ast),
+    )
+    vars_found = parsing.get_variable_names(expr_ast)
+    if len(vars_found) > 1:
+      raise ValueError("Multiple variables are not supported in a single inequality.")
+    if len(vars_found) == 1 and "x" not in vars_found:
+      var_name = next(iter(vars_found))
+      expr_ast = parsing.replace_variable(expr_ast, var_name, "x")
 
-  a, b = parsing.linearize_ast(expr_ast)
-  return _solve_linear_inequality_from_coeffs(a, b, op)
+    cases = parsing.build_abs_cases(expr_ast)
+    if cases:
+      current = []
+      for case_expr, constraints in cases:
+        a, b = parsing.linearize_ast(case_expr)
+        case_intervals = _solve_linear_inequality_from_coeffs(a, b, op)
+        case_intervals = _filter_intervals_by_constraints(case_intervals, constraints)
+        current.extend(case_intervals)
+      intervals = _intersect_interval_lists(intervals, current)
+      continue
+
+    a, b = parsing.linearize_ast(expr_ast)
+    current = _solve_linear_inequality_from_coeffs(a, b, op)
+    intervals = _intersect_interval_lists(intervals, current)
+
+  return _merge_intervals(intervals)
 
 def format_intervals(intervals):
   if not intervals:
