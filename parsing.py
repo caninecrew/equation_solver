@@ -191,8 +191,6 @@ def linearize_ast(node) -> tuple[float, float]:
         raise ValueError("Unsupported binary operator.")
     raise ValueError("Unsupported expression node.")
 
-
-
 def reduce_linear(expr: str) -> tuple[float, float]:
     '''
     Reduces a linear algebraic expression into the coefficients of 'x' and the constant term.
@@ -207,3 +205,140 @@ def reduce_linear(expr: str) -> tuple[float, float]:
     '''
     node = parse_expr(expr)
     return linearize_ast(node)
+
+def find_abs_calls(node):
+    """
+    Finds all abs() function calls in an AST node. This is useful for identifying absolute value expressions in an equation and includes their arguments for further processing.
+
+    Args:
+        node: An AST node representing the expression.
+    Returns:
+        list: A list of AST nodes that are arguments to abs() function calls.
+    """
+    found = []
+
+    def visit(n):
+        if isinstance(n, ast.Call):
+            if isinstance(n.func, ast.Name) and n.func.id == "abs" and len(n.args) == 1:
+                found.append(n.args[0])
+            # keep walking call args too
+            for arg in n.args:
+                visit(arg)
+            return
+
+        # Walk binary/unary/other expression nodes
+        if isinstance(n, ast.BinOp):
+            visit(n.left)
+            visit(n.right)
+        elif isinstance(n, ast.UnaryOp):
+            visit(n.operand)
+        elif isinstance(n, ast.BoolOp):
+            for v in n.values:
+                visit(v)
+        elif isinstance(n, ast.Compare):
+            visit(n.left)
+            for c in n.comparators:
+                visit(c)
+        elif isinstance(n, ast.IfExp):
+            visit(n.test)
+            visit(n.body)
+            visit(n.orelse)
+        elif isinstance(n, ast.Call):
+            # handled above
+            pass
+        # constants/names: nothing to do
+
+    visit(node)
+    return found
+
+def replace_first_abs(node, replacement):
+    """
+    Returns (new_node, replaced) where replaced indicates whether an abs() was swapped. This function traverses an AST node and replaces the first occurrence of an abs() function call with a provided replacement node.
+    """
+    # If this node IS abs(...)
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "abs":
+        if len(node.args) != 1:
+            raise ValueError("abs() takes one argument.")
+        return replacement(node.args[0]), True
+
+    # Recurse into children (handle BinOp, UnaryOp, etc.)
+    if isinstance(node, ast.BinOp):
+        left, replaced = replace_first_abs(node.left, replacement)
+        if replaced:
+            return ast.BinOp(left=left, op=node.op, right=node.right), True
+        right, replaced = replace_first_abs(node.right, replacement)
+        return ast.BinOp(left=node.left, op=node.op, right=right), replaced
+
+    if isinstance(node, ast.UnaryOp):
+        operand, replaced = replace_first_abs(node.operand, replacement)
+        return ast.UnaryOp(op=node.op, operand=operand), replaced
+
+    return node, False
+
+def build_abs_cases(expr_ast):
+    def pos_repl(f):
+        return f  # +f
+
+    def neg_repl(f):
+        return ast.UnaryOp(op=ast.USub(), operand=f)  # -f
+
+    expr_pos, did = replace_first_abs(expr_ast, pos_repl)
+    if not did:
+        return []
+
+    # constraint f >= 0
+    f = find_abs_calls(expr_ast)[0]  # or return f from replace_first_abs
+    constraint_pos = ast.Compare(left=f, ops=[ast.GtE()], comparators=[ast.Constant(0)])
+
+    # constraint f < 0
+    expr_neg, _ = replace_first_abs(expr_ast, neg_repl)
+    constraint_neg = ast.Compare(left=f, ops=[ast.Lt()], comparators=[ast.Constant(0)])
+
+    return [
+        (expr_pos, constraint_pos),
+        (expr_neg, constraint_neg),
+    ]
+
+def eval_linear_ast(node, x_value):
+    # returns numeric value of the expression at x
+    if isinstance(node, ast.Constant):
+        value = node.value
+        if not isinstance(value, (int, float)):
+            raise ValueError("Only numeric constants supported.")
+        return float(value)
+    if isinstance(node, ast.Name):
+        if node.id != "x":
+            raise ValueError("Only 'x' is supported.")
+        return float(x_value)
+    if isinstance(node, ast.UnaryOp):
+        val = eval_linear_ast(node.operand, x_value)
+        if isinstance(node.op, ast.USub):
+            return -val
+        if isinstance(node.op, ast.UAdd):
+            return val
+        raise ValueError("Unsupported unary op.")
+    if isinstance(node, ast.BinOp):
+        left = eval_linear_ast(node.left, x_value)
+        right = eval_linear_ast(node.right, x_value)
+        if isinstance(node.op, ast.Add): return left + right
+        if isinstance(node.op, ast.Sub): return left - right
+        if isinstance(node.op, ast.Mult): return left * right
+        if isinstance(node.op, ast.Div): return left / right
+        if isinstance(node.op, ast.Pow): return left ** right
+        raise ValueError("Unsupported binary op.")
+    raise ValueError("Unsupported node.")
+
+def eval_constraint(node, x_value):
+    if not isinstance(node, ast.Compare):
+        raise ValueError("Expected Compare node.")
+    if len(node.ops) != 1 or len(node.comparators) != 1:
+        raise ValueError("Only single comparisons supported.")
+    left = eval_linear_ast(node.left, x_value)
+    right = eval_linear_ast(node.comparators[0], x_value)
+    op = node.ops[0]
+    if isinstance(op, ast.GtE): return left >= right
+    if isinstance(op, ast.Lt): return left < right
+    if isinstance(op, ast.Gt): return left > right
+    if isinstance(op, ast.LtE): return left <= right
+    if isinstance(op, ast.Eq): return left == right
+    raise ValueError("Unsupported comparison.")
