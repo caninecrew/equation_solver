@@ -55,6 +55,49 @@ def solve_linear(equation):
 
   return [] # If 'a' is zero and 'b' is not zero (e.g., 0=5), there is no solution
 
+def solve_inequality(equation):
+  """
+  Solves a linear inequality and returns solution intervals.
+  """
+  lhs, op, rhs = parsing.split_inequality(equation)
+  lhs_ast = parsing.parse_expr(lhs)
+  rhs_ast = parsing.parse_expr(rhs)
+  expr_ast = parsing.ast.BinOp(
+    left=cast(parsing.ast.expr, lhs_ast),
+    op=parsing.ast.Sub(),
+    right=cast(parsing.ast.expr, rhs_ast),
+  )
+
+  cases = parsing.build_abs_cases(expr_ast)
+  if cases:
+    intervals = []
+    for case_expr, constraints in cases:
+      a, b = parsing.linearize_ast(case_expr)
+      intervals.extend(_solve_linear_inequality_from_coeffs(a, b, op))
+      intervals = _filter_intervals_by_constraints(intervals, constraints)
+    return _merge_intervals(intervals)
+
+  a, b = parsing.linearize_ast(expr_ast)
+  return _solve_linear_inequality_from_coeffs(a, b, op)
+
+def format_intervals(intervals):
+  if not intervals:
+    return "no solution"
+  if intervals == [(-float("inf"), float("inf"), False, False)]:
+    return "all real numbers"
+
+  parts = []
+  for low, high, inc_low, inc_high in intervals:
+    left = "[" if inc_low else "("
+    right = "]" if inc_high else ")"
+    low_text = "-∞" if low == -float("inf") else _fmt_number(low)
+    high_text = "∞" if high == float("inf") else _fmt_number(high)
+    if low == high:
+      parts.append(f"{{{low_text}}}")
+    else:
+      parts.append(f"{left}{low_text}, {high_text}{right}")
+  return " U ".join(parts)
+
 def _constraint_always_true(constraint):
   if not isinstance(constraint, parsing.ast.Compare):
     return False
@@ -80,6 +123,145 @@ def _constraint_always_true(constraint):
   if isinstance(op, parsing.ast.Eq):
     return b == 0.0
   return False
+
+def _solve_linear_inequality_from_coeffs(a, b, op):
+  """
+  Solves a*x + b op 0 and returns a list of intervals.
+  """
+  if a == 0:
+    truth = _compare_constant(b, op)
+    return [(-float("inf"), float("inf"), False, False)] if truth else []
+
+  cutoff = -b / a
+  if op == "<":
+    return [(-float("inf"), cutoff, False, False)] if a > 0 else [(cutoff, float("inf"), False, False)]
+  if op == "<=":
+    return [(-float("inf"), cutoff, False, True)] if a > 0 else [(cutoff, float("inf"), True, False)]
+  if op == ">":
+    return [(cutoff, float("inf"), False, False)] if a > 0 else [(-float("inf"), cutoff, False, False)]
+  if op == ">=":
+    return [(cutoff, float("inf"), True, False)] if a > 0 else [(-float("inf"), cutoff, False, True)]
+  raise ValueError("Unsupported inequality operator.")
+
+def _compare_constant(value, op):
+  if op == "<":
+    return value < 0
+  if op == "<=":
+    return value <= 0
+  if op == ">":
+    return value > 0
+  if op == ">=":
+    return value >= 0
+  raise ValueError("Unsupported inequality operator.")
+
+def _filter_intervals_by_constraints(intervals, constraints):
+  if not constraints:
+    return intervals
+  filtered = intervals
+  for constraint in constraints:
+    constraint_intervals = _constraint_to_intervals(constraint)
+    filtered = _intersect_interval_lists(filtered, constraint_intervals)
+    if not filtered:
+      break
+  return filtered
+
+def _pick_sample(low, high):
+  if low == -float("inf") and high == float("inf"):
+    return 0.0
+  if low == -float("inf"):
+    return high - 1.0
+  if high == float("inf"):
+    return low + 1.0
+  return (low + high) / 2.0
+
+def _constraint_to_intervals(constraint):
+  if not isinstance(constraint, parsing.ast.Compare):
+    raise ValueError("Expected Compare node.")
+  if len(constraint.ops) != 1 or len(constraint.comparators) != 1:
+    raise ValueError("Only single comparisons supported.")
+
+  diff = parsing.ast.BinOp(
+    left=constraint.left, op=parsing.ast.Sub(), right=constraint.comparators[0]
+  )
+  a, b = parsing.linearize_ast(diff)
+  op = constraint.ops[0]
+  if isinstance(op, parsing.ast.Lt):
+    return _solve_linear_inequality_from_coeffs(a, b, "<")
+  if isinstance(op, parsing.ast.LtE):
+    return _solve_linear_inequality_from_coeffs(a, b, "<=")
+  if isinstance(op, parsing.ast.Gt):
+    return _solve_linear_inequality_from_coeffs(a, b, ">")
+  if isinstance(op, parsing.ast.GtE):
+    return _solve_linear_inequality_from_coeffs(a, b, ">=")
+  if isinstance(op, parsing.ast.Eq):
+    roots = solve_linear_from_coeffs(a, b)
+    if roots == ["ALL_REAL_NUMBERS"]:
+      return [(-float("inf"), float("inf"), False, False)]
+    return [(r, r, True, True) for r in roots if isinstance(r, (int, float))]
+  raise ValueError("Unsupported comparison.")
+
+def _intersect_interval_lists(a_list, b_list):
+  result = []
+  for a in a_list:
+    for b in b_list:
+      hit = _intersect_intervals(a, b)
+      if hit is not None:
+        result.append(hit)
+  return _merge_intervals(result)
+
+def _intersect_intervals(a, b):
+  a_low, a_high, a_inc_low, a_inc_high = a
+  b_low, b_high, b_inc_low, b_inc_high = b
+
+  low = max(a_low, b_low)
+  high = min(a_high, b_high)
+  if low > high:
+    return None
+  if low == high:
+    inc = _is_inclusive_at(low, a_low, a_inc_low, a_high, a_inc_high) and _is_inclusive_at(
+      low, b_low, b_inc_low, b_high, b_inc_high
+    )
+    return (low, high, inc, inc) if inc else None
+
+  inc_low = _is_inclusive_at(low, a_low, a_inc_low, a_high, a_inc_high) and _is_inclusive_at(
+    low, b_low, b_inc_low, b_high, b_inc_high
+  )
+  inc_high = _is_inclusive_at(
+    high, a_low, a_inc_low, a_high, a_inc_high
+  ) and _is_inclusive_at(high, b_low, b_inc_low, b_high, b_inc_high)
+  return (low, high, inc_low, inc_high)
+
+def _is_inclusive_at(value, low, inc_low, high, inc_high):
+  if value == low:
+    return inc_low
+  if value == high:
+    return inc_high
+  return True
+
+def _merge_intervals(intervals, eps=1e-9):
+  if not intervals:
+    return []
+  intervals.sort(key=lambda x: x[0])
+  merged = [intervals[0]]
+  for low, high, inc_low, inc_high in intervals[1:]:
+    last_low, last_high, last_inc_low, last_inc_high = merged[-1]
+    if low <= last_high + eps:
+      merged[-1] = (
+        last_low,
+        max(last_high, high),
+        last_inc_low,
+        last_inc_high or inc_high,
+      )
+    else:
+      merged.append((low, high, inc_low, inc_high))
+  return merged
+
+def _fmt_number(value):
+  if abs(value) < 1e-9:
+    return "0"
+  if float(value).is_integer():
+    return str(int(value))
+  return str(value)
 
 def _dedupe_and_sort(results, eps=1e-9):
   if not results:

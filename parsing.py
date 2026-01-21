@@ -32,6 +32,39 @@ def split_equation(equation: str) -> tuple[str, str]:
 
   return equation_strip(lhs, rhs) # Further strip and validate variables using equation_strip
 
+def split_inequality(equation: str) -> tuple[str, str, str]:
+  """
+  Splits an inequality string into its left-hand side, operator, and right-hand side.
+
+  Args:
+    equation (str): The full inequality string (e.g., "2x + 3 <= 7").
+
+  Returns:
+    tuple[str, str, str]: A tuple containing the left-hand side, operator, and right-hand side.
+
+  Raises:
+    ValueError:
+      - If the inequality does not contain exactly one comparison operator.
+      - If either side of the inequality is empty after stripping whitespace.
+  """
+  eq = equation.strip()
+  match = re.search(r"(<=|>=|<|>)", eq)
+  if not match:
+    raise ValueError("Inequality must contain exactly one comparison operator.")
+  op = match.group(1)
+  if re.search(r"(<=|>=|<|>)", eq[match.end():]):
+    raise ValueError("Inequality must contain exactly one comparison operator.")
+
+  lhs, rhs = eq.split(op, 1)
+  lhs = lhs.strip()
+  rhs = rhs.strip()
+
+  if lhs == "" or rhs == "":
+    raise ValueError("Both sides of the inequality must be non-empty.")
+
+  lhs, rhs = equation_strip(lhs, rhs)
+  return lhs, op, rhs
+
 def equation_strip(lhs: str, rhs: str) -> tuple[str, str]:
 
     lhs = lhs.replace(" ", "")
@@ -42,7 +75,7 @@ def equation_strip(lhs: str, rhs: str) -> tuple[str, str]:
 
     combined = lhs + rhs
 
-    if any(not (char.isalnum() or char in "+-*/.()") for char in combined):
+    if any(not (char.isalnum() or char in "+-*/.()^") for char in combined):
         raise ValueError("Equation contains invalid characters.")
 
     return lhs, rhs

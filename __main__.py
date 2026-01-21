@@ -1,3 +1,3 @@
 from solve import solve
 
-print(solve("abs(x+1) + abs(x-1) = 3"))
+print(solve("x+4>3"))
