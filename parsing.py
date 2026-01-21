@@ -653,10 +653,14 @@ def eval_expr_ast(node, x_value):
         if func == "tan":
             return math.tan(arg)
         if func == "log":
+            if arg <= 0:
+                raise ValueError("log() domain error.")
             return math.log(arg)
         if func == "exp":
             return math.exp(arg)
         if func == "sqrt":
+            if arg < 0:
+                raise ValueError("sqrt() domain error.")
             return math.sqrt(arg)
         raise ValueError("Unsupported function call.")
     coeffs = polynomialize_ast(node)
