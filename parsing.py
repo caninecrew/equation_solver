@@ -224,6 +224,87 @@ def linearize_ast(node) -> tuple[float, float]:
         raise ValueError("Unsupported binary operator.")
     raise ValueError("Unsupported expression node.")
 
+def quadraticize_ast(node) -> tuple[float, float, float]:
+    """
+    Converts an AST node into quadratic coefficients (a, b, c) for a*x^2 + b*x + c.
+    Supports +, -, *, / with constants and x, and x^2.
+    """
+    def add_poly(p, q):
+        return (p[0] + q[0], p[1] + q[1], p[2] + q[2])
+
+    def sub_poly(p, q):
+        return (p[0] - q[0], p[1] - q[1], p[2] - q[2])
+
+    def mul_poly(p, q):
+        # (c0 + c1*x + c2*x^2) * (d0 + d1*x + d2*x^2)
+        c0, c1, c2 = p
+        d0, d1, d2 = q
+        # Compute up to degree 2, reject higher-degree terms.
+        deg3 = c1 * d2 + c2 * d1
+        deg4 = c2 * d2
+        if deg3 != 0.0 or deg4 != 0.0:
+            raise ValueError("Polynomial degree greater than 2 is not supported.")
+        return (
+            c0 * d0,
+            c0 * d1 + c1 * d0,
+            c0 * d2 + c1 * d1 + c2 * d0,
+        )
+
+    def div_poly(p, q):
+        # Only allow division by constant.
+        if q[1] != 0.0 or q[2] != 0.0:
+            raise ValueError("Division by non-constant is not supported.")
+        if q[0] == 0.0:
+            raise ZeroDivisionError("Division by zero.")
+        return (p[0] / q[0], p[1] / q[0], p[2] / q[0])
+
+    if isinstance(node, ast.Constant):
+        if not isinstance(node.value, (int, float)):
+            raise ValueError("Only numeric constants supported.")
+        return (float(node.value), 0.0, 0.0)
+
+    if isinstance(node, ast.Name):
+        if node.id != "x":
+            raise ValueError("Only 'x' is supported.")
+        return (0.0, 1.0, 0.0)
+
+    if isinstance(node, ast.UnaryOp):
+        a, b, c = quadraticize_ast(node.operand)
+        if isinstance(node.op, ast.USub):
+            return (-a, -b, -c)
+        if isinstance(node.op, ast.UAdd):
+            return (a, b, c)
+        raise ValueError("Unsupported unary operator.")
+
+    if isinstance(node, ast.BinOp):
+        left = quadraticize_ast(node.left)
+        right = quadraticize_ast(node.right)
+
+        if isinstance(node.op, ast.Add):
+            return add_poly(left, right)
+        if isinstance(node.op, ast.Sub):
+            return sub_poly(left, right)
+        if isinstance(node.op, ast.Mult):
+            return mul_poly(left, right)
+        if isinstance(node.op, ast.Div):
+            return div_poly(left, right)
+        if isinstance(node.op, ast.Pow):
+            # Only allow x^2 or constant^2.
+            if right[1] != 0.0 or right[2] != 0.0:
+                raise ValueError("Exponent must be constant.")
+            exp = right[0]
+            if exp == 2:
+                return mul_poly(left, left)
+            if exp == 1:
+                return left
+            if exp == 0:
+                return (1.0, 0.0, 0.0)
+            raise ValueError("Only exponent 2 is supported for x.")
+
+        raise ValueError("Unsupported binary operator.")
+
+    raise ValueError("Unsupported expression node.")
+
 def reduce_linear(expr: str) -> tuple[float, float]:
     '''
     Reduces a linear algebraic expression into the coefficients of 'x' and the constant term.
