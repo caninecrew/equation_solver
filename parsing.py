@@ -37,6 +37,26 @@ def split_equation(equation: str) -> tuple[str, str]:
 
   return equation_strip(lhs, rhs) # Further strip and validate variables using equation_strip
 
+def split_equalities(equation: str) -> list[str]:
+  """
+  Splits chained equalities like "x = y = z" into ["x = y", "y = z"].
+  """
+  eq = equation.strip()
+  matches = list(re.finditer(r"(?<![<>])=(?!=)", eq))
+  if len(matches) <= 1:
+    return [eq]
+  parts = []
+  start = 0
+  for m in matches:
+    parts.append(eq[start:m.start()])
+    start = m.end()
+  parts.append(eq[start:])
+
+  exprs = [p.strip() for p in parts]
+  if any(p == "" for p in exprs):
+    raise ValueError("Both sides of the equation must be non-empty.")
+  return [f"{exprs[i]} = {exprs[i + 1]}" for i in range(len(exprs) - 1)]
+
 def split_inequality(equation: str) -> tuple[list[str], list[str]]:
   """
   Splits an inequality string into segments (expr, op, expr), supporting chaining.

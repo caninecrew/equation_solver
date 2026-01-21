@@ -26,6 +26,10 @@ def solve(equation, xmin=None, xmax=None):
                   solutions = nonlinear.solve_nonlinear_system_all(equation)
                   return "[" + ", ".join("{" + ", ".join(f"{k}={v}" for k, v in sol.items()) + "}" for sol in solutions) + "]"
   if isinstance(equation, str): # Check if the equation is a string
+          # Expand chained equalities into a system.
+          expanded = parsing.split_equalities(equation)
+          if len(expanded) > 1:
+                  return solve(expanded, xmin=xmin, xmax=xmax)
           if any(op in equation for op in ["<=", ">=", "<", ">"]):
                   try:
                           intervals = linear.solve_inequality(equation)
