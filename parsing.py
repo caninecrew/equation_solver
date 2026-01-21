@@ -1,3 +1,6 @@
+import re # Import the regular expressions module
+import ast # Import the abstract syntax tree module
+
 def split_equation(equation: str) -> tuple[str, str]:
   """
   Splits an equation string into its left and right-hand sides.
@@ -13,6 +16,7 @@ def split_equation(equation: str) -> tuple[str, str]:
       - If the equation does not contain exactly one '=' sign.
       - If either side of the equation is empty after stripping whitespace.
   """
+
   eq = equation.strip() # Remove leading/trailing whitespace from the full equation
 
   if eq.count("=") != 1: # Check if there is exactly one '=' sign
@@ -29,6 +33,7 @@ def split_equation(equation: str) -> tuple[str, str]:
   return equation_strip(lhs, rhs) # Further strip and validate variables using equation_strip
 
 def equation_strip(lhs: str, rhs: str) -> tuple[str, str]:
+
     lhs = lhs.replace(" ", "")
     rhs = rhs.replace(" ", "")
 
@@ -81,3 +86,78 @@ def split_terms(expr: str) -> list[str]:
 
   terms.append(expr[start:]) # Append the last term after the loop finishes
   return terms # Return the list of terms
+
+def insert_implicit_mul(expr: str) -> str:
+    """
+    Inserts explicit multiplication operators '*' where implicit multiplication is detected.
+    For example, "2x" becomes "2*x" and "3(x + 1)" becomes "3*(x + 1)".
+
+    Args:
+        expr (str): The algebraic expression string.
+
+    Returns:
+        str: The expression with explicit multiplication operators.
+    """
+
+    expr = expr.replace(" ", "")
+    # number followed by symbol or '('
+    expr = re.sub(r'(\d)([A-Za-z(])', r'\1*\2', expr)
+    # symbol or ')' followed by number or '('
+    expr = re.sub(r'([A-Za-z)])(\d|\()', r'\1*\2', expr)
+    # ')' followed by symbol or '('
+    expr = re.sub(r'(\))([A-Za-z(])', r'\1*\2', expr)
+    return expr
+
+def linearize_ast(node) -> tuple[float, float]:
+    """
+    Converts an AST node representing a linear expression into its coefficients (a, b) for the form a*x + b.
+
+    Args:
+        node: An AST node representing the expression.
+    Returns:
+        tuple[float, float]:
+            A tuple (a, b) representing the coefficients of the linear expression a*x + b.
+    """
+    # returns (a, b) for a*x + b
+    if isinstance(node, ast.Constant):
+        if not isinstance(node.value, (int, float)):
+            raise ValueError("Only numeric constants supported.")
+        return 0.0, float(node.value)
+
+    if isinstance(node, ast.Name):
+        if node.id != "x":
+            raise ValueError("Only 'x' is supported.")
+        return 1.0, 0.0
+
+    if isinstance(node, ast.UnaryOp):
+        a, b = linearize_ast(node.operand)
+        if isinstance(node.op, ast.USub):
+            return -a, -b
+        if isinstance(node.op, ast.UAdd):
+            return a, b
+        raise ValueError("Unsupported unary operator.")
+
+    if isinstance(node, ast.BinOp):
+        a1, b1 = linearize_ast(node.left)
+        a2, b2 = linearize_ast(node.right)
+
+        if isinstance(node.op, ast.Add):
+            return a1 + a2, b1 + b2
+        if isinstance(node.op, ast.Sub):
+            return a1 - a2, b1 - b2
+        if isinstance(node.op, ast.Mult):
+            # nonlinear if both sides have x
+            if a1 != 0.0 and a2 != 0.0:
+                raise ValueError("Nonlinear term in multiplication.")
+            if a2 == 0.0:
+                return a1 * b2, b1 * b2
+            return a2 * b1, b2 * b1
+        if isinstance(node.op, ast.Div):
+            if a2 != 0.0:
+                raise ValueError("Nonlinear term in division.")
+            if b2 == 0.0:
+                raise ZeroDivisionError("Division by zero.")
+            return a1 / b2, b1 / b2
+
+        raise ValueError("Unsupported binary operator.")
+    raise ValueError("Unsupported expression node.")
