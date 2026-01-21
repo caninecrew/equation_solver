@@ -35,7 +35,22 @@ def _bisect(f, a, b, fa, fb, tol=1e-8, max_iter=100):
       fa = fm
   return (a + b) / 2.0
 
-def find_real_roots(expr_ast, xmin=-10.0, xmax=10.0, steps=400):
+def _derivative(f, x, h=1e-5):
+  return (f(x + h) - f(x - h)) / (2 * h)
+
+def _newton(f, x0, tol=1e-10, max_iter=50):
+  x = x0
+  for _ in range(max_iter):
+    fx = f(x)
+    if abs(fx) <= tol:
+      return x
+    dfx = _derivative(f, x)
+    if dfx == 0:
+      return x
+    x -= fx / dfx
+  return x
+
+def find_real_roots(expr_ast, xmin=-10.0, xmax=10.0, steps=400, zero_eps=1e-6):
   def f(x):
     return parsing.eval_expr_ast(expr_ast, x)
 
@@ -56,6 +71,8 @@ def find_real_roots(expr_ast, xmin=-10.0, xmax=10.0, steps=400):
       f1 = float("nan")
     if f1 == 0:
       roots.append(x1)
+    if math.isfinite(f1) and abs(f1) < zero_eps:
+      roots.append(_newton(f, x1))
     if math.isfinite(f0) and math.isfinite(f1) and _sign(f0) * _sign(f1) < 0:
       root = _bisect(f, x0, x1, f0, f1)
       roots.append(root)
