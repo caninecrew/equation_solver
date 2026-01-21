@@ -22,8 +22,11 @@ def solve(equation, xmin=None, xmax=None):
           return "{" + ", ".join(f"{k}={v}" for k, v in solutions.items()) + "}"
   if isinstance(equation, str): # Check if the equation is a string
           if any(op in equation for op in ["<=", ">=", "<", ">"]):
-                  intervals = linear.solve_inequality(equation)
-                  return linear.format_intervals(intervals)
+                  try:
+                          intervals = linear.solve_inequality(equation)
+                          return linear.format_intervals(intervals)
+                  except ValueError:
+                          pass
 
           # Try quadratic form first when possible.
           lhs, rhs = parsing.split_equation(equation)

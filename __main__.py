@@ -1,4 +1,5 @@
 from solve import solve
 
-print(solve("u+4=3"))
+print(solve("piecewise(x<0, -x, x>=0, x, 0) = 1"))
+
 

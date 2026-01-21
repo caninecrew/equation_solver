@@ -19,10 +19,15 @@ def split_equation(equation: str) -> tuple[str, str]:
 
   eq = equation.strip() # Remove leading/trailing whitespace from the full equation
 
-  if eq.count("=") != 1: # Check if there is exactly one '=' sign
-    raise ValueError("Equation must contain exactly one '=' sign.") # Raise an error if not
+  # Match '=' that is not part of '>=' or '<='.
+  match = re.search(r"(?<![<>])=(?!=)", eq)
+  if not match:
+    raise ValueError("Equation must contain exactly one '=' sign.")
+  if re.search(r"(?<![<>])=(?!=)", eq[match.end():]):
+    raise ValueError("Equation must contain exactly one '=' sign.")
 
-  lhs, rhs = eq.split("=", 1) # Split the equation into left and right sides at the first '=' sign
+  split_at = match.start()
+  lhs, rhs = eq[:split_at], eq[split_at + 1:] # Split at the standalone '=' sign
 
   lhs = lhs.strip() # Remove leading/trailing whitespace from the left-hand side
   rhs = rhs.strip() # Remove leading/trailing whitespace from the right-hand side
@@ -75,7 +80,7 @@ def equation_strip(lhs: str, rhs: str) -> tuple[str, str]:
 
     combined = lhs + rhs
 
-    if any(not (char.isalnum() or char in "+-*/.()^") for char in combined):
+    if any(not (char.isalnum() or char in "+-*/.()^<>=,") for char in combined):
         raise ValueError("Equation contains invalid characters.")
 
     return lhs, rhs
@@ -636,10 +641,15 @@ def eval_expr_ast(node, x_value):
         if isinstance(node.op, ast.Div): return left / right
         if isinstance(node.op, ast.Pow): return left ** right
         raise ValueError("Unsupported binary op.")
+    if isinstance(node, ast.IfExp):
+        cond = eval_condition_ast(node.test, x_value)
+        return eval_expr_ast(node.body, x_value) if cond else eval_expr_ast(node.orelse, x_value)
     if isinstance(node, ast.Call):
         if not isinstance(node.func, ast.Name):
             raise ValueError("Unsupported function call.")
         if len(node.args) != 1:
+            if node.func.id == "piecewise":
+                return eval_piecewise_call(node, x_value)
             raise ValueError("Only single-argument functions supported.")
         import math
         func = node.func.id
@@ -662,9 +672,48 @@ def eval_expr_ast(node, x_value):
             if arg < 0:
                 raise ValueError("sqrt() domain error.")
             return math.sqrt(arg)
+        if func == "piecewise":
+            return eval_piecewise_call(node, x_value)
         raise ValueError("Unsupported function call.")
     coeffs = polynomialize_ast(node)
     return eval_poly_coeffs(coeffs, x_value)
+
+def eval_condition_ast(node, x_value):
+    if isinstance(node, ast.Compare):
+        if len(node.ops) != 1 or len(node.comparators) != 1:
+            raise ValueError("Only single comparisons supported in conditions.")
+        left = eval_expr_ast(node.left, x_value)
+        right = eval_expr_ast(node.comparators[0], x_value)
+        op = node.ops[0]
+        if isinstance(op, ast.GtE): return left >= right
+        if isinstance(op, ast.Lt): return left < right
+        if isinstance(op, ast.Gt): return left > right
+        if isinstance(op, ast.LtE): return left <= right
+        if isinstance(op, ast.Eq): return left == right
+        if isinstance(op, ast.NotEq): return left != right
+        raise ValueError("Unsupported comparison operator.")
+    if isinstance(node, ast.BoolOp):
+        if isinstance(node.op, ast.And):
+            return all(eval_condition_ast(v, x_value) for v in node.values)
+        if isinstance(node.op, ast.Or):
+            return any(eval_condition_ast(v, x_value) for v in node.values)
+        raise ValueError("Unsupported boolean operator.")
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
+        return not eval_condition_ast(node.operand, x_value)
+    # Fallback: treat numeric expression as truthy/falsey.
+    return eval_expr_ast(node, x_value) != 0
+
+def eval_piecewise_call(node, x_value):
+    if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name) or node.func.id != "piecewise":
+        raise ValueError("Invalid piecewise call.")
+    if len(node.args) < 3 or len(node.args) % 2 == 0:
+        raise ValueError("piecewise requires pairs of (condition, expr) plus a default expr.")
+    for i in range(0, len(node.args) - 1, 2):
+        cond = node.args[i]
+        expr = node.args[i + 1]
+        if eval_condition_ast(cond, x_value):
+            return eval_expr_ast(expr, x_value)
+    return eval_expr_ast(node.args[-1], x_value)
 
 def eval_constraint(node, x_value):
     if not isinstance(node, ast.Compare):
@@ -685,7 +734,8 @@ def get_variable_names(node):
     names = set()
     for n in ast.walk(node):
         if isinstance(n, ast.Name):
-            names.add(n.id)
+            if n.id not in {"sin", "cos", "tan", "log", "exp", "sqrt", "abs", "piecewise"}:
+                names.add(n.id)
     return names
 
 class _VarReplacer(ast.NodeTransformer):
