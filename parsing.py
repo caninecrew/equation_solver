@@ -147,9 +147,11 @@ def insert_implicit_mul(expr: str) -> str:
     """
 
     expr = expr.replace(" ", "")
-    expr = re.sub(r'(\d)([A-Za-z(])', r'\1*\2', expr)
-    expr = re.sub(r'([A-Za-z)])(\d|\()', r'\1*\2', expr)
-    expr = re.sub(r'(\))([A-Za-z(])', r'\1*\2', expr)
+    expr = re.sub(r'(\d)([A-Za-z])(?![A-Za-z])', r'\1*\2', expr)
+    expr = re.sub(r'(\d)(\()', r'\1*\2', expr)
+    expr = re.sub(r'(?<![A-Za-z])([A-Za-z])(\d|\()', r'\1*\2', expr)
+    expr = re.sub(r'(\))([A-Za-z])(?![A-Za-z])', r'\1*\2', expr)
+    expr = re.sub(r'(\))(\()', r'\1*\2', expr)
     return expr
 
 def linearize_ast(node) -> tuple[float, float]:
@@ -674,3 +676,23 @@ def eval_constraint(node, x_value):
     if isinstance(op, ast.LtE): return left <= right
     if isinstance(op, ast.Eq): return left == right
     raise ValueError("Unsupported comparison.")
+
+def get_variable_names(node):
+    names = set()
+    for n in ast.walk(node):
+        if isinstance(n, ast.Name):
+            names.add(n.id)
+    return names
+
+class _VarReplacer(ast.NodeTransformer):
+    def __init__(self, from_name, to_name):
+        self.from_name = from_name
+        self.to_name = to_name
+
+    def visit_Name(self, node):
+        if node.id == self.from_name:
+            return ast.copy_location(ast.Name(id=self.to_name, ctx=node.ctx), node)
+        return node
+
+def replace_variable(node, from_name, to_name):
+    return _VarReplacer(from_name, to_name).visit(node)

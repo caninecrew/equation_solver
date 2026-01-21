@@ -27,6 +27,12 @@ def solve_linear(equation):
     op=parsing.ast.Sub(),
     right=cast(parsing.ast.expr, rhs_ast),
   )
+  vars_found = parsing.get_variable_names(expr_ast)
+  if len(vars_found) > 1:
+    raise ValueError("Multiple variables are not supported in a single equation.")
+  if len(vars_found) == 1 and "x" not in vars_found:
+    var_name = next(iter(vars_found))
+    expr_ast = parsing.replace_variable(expr_ast, var_name, "x")
   cases = parsing.build_abs_cases(expr_ast)
   if cases:
     results = []
@@ -67,6 +73,12 @@ def solve_inequality(equation):
     op=parsing.ast.Sub(),
     right=cast(parsing.ast.expr, rhs_ast),
   )
+  vars_found = parsing.get_variable_names(expr_ast)
+  if len(vars_found) > 1:
+    raise ValueError("Multiple variables are not supported in a single inequality.")
+  if len(vars_found) == 1 and "x" not in vars_found:
+    var_name = next(iter(vars_found))
+    expr_ast = parsing.replace_variable(expr_ast, var_name, "x")
 
   cases = parsing.build_abs_cases(expr_ast)
   if cases:

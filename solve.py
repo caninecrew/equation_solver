@@ -34,6 +34,12 @@ def solve(equation, xmin=None, xmax=None):
                   op=parsing.ast.Sub(),
                   right=cast(parsing.ast.expr, rhs_ast),
           )
+          vars_found = parsing.get_variable_names(expr_ast)
+          if len(vars_found) > 1:
+                  raise ValueError("Multiple variables are not supported in a single equation.")
+          if len(vars_found) == 1 and "x" not in vars_found:
+                  var_name = next(iter(vars_found))
+                  expr_ast = parsing.replace_variable(expr_ast, var_name, "x")
           try:
                   coeffs = parsing.polynomialize_ast(expr_ast)
                   while len(coeffs) > 1 and abs(coeffs[-1]) < 1e-12:
