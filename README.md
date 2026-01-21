@@ -77,6 +77,8 @@ Equations
 - All real numbers: `all real numbers`.
 - No solution: `no solution`.
 - Complex roots: `{a + bi, a - bi}`.
+- Linear systems: `{x=2, y=1}`.
+- Nonlinear systems: `[{x=0.7, y=0.7}, {x=-0.7, y=-0.7}]`.
 
 Inequalities
 ~~~~~~~~~~~~
@@ -84,7 +86,8 @@ Intervals are formatted as:
 - `(a, b)` for open intervals
 - `[a, b]` for closed intervals
 - Mixed endpoints for half-open intervals
-- Unbounded intervals use `-inf` and `inf`
+- Unbounded intervals use `-∞` and `∞`
+- Full-space and empty results use `all real numbers` or `no solution`
 
 Multi-variable inequalities
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -99,7 +102,7 @@ Notes and Limitations
 - Transcendental solving is numeric and may miss roots with even multiplicity
   or flat zero crossings.
 - Nonlinear systems use Newton's method and may fail to converge depending on
-  the initial guesses.
+  the initial guesses; a failure raises `ValueError`.
 - Inequalities with nonlinear multi-variable expressions are not fully solved
   as regions; only linear half-spaces are supported.
 - Domain restrictions for `log` and `sqrt` are enforced during evaluation.
@@ -112,7 +115,7 @@ Additional Examples
 solve("3x - 9 = 0")          # {3}
 
 # Linear inequality
-solve("2x + 1 >= 5")         # [2, inf)
+solve("2x + 1 >= 5")         # [2, ∞)
 
 # Chained inequality with expression
 solve("1 < x+2 < 4")         # (-1, 2)
@@ -151,10 +154,10 @@ module directly.
 Command-line (module entry point):
 
 ```bash
-python -m equation_solver
+python __main__.py
 ```
 
-The current `__main__.py` runs a few example solves.
+The current `__main__.py` runs a few example solves from the repo root.
 
 Supported Input
 ---------------
