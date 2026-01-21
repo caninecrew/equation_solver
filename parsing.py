@@ -42,7 +42,7 @@ def equation_strip(lhs: str, rhs: str) -> tuple[str, str]:
 
     combined = lhs + rhs
 
-    if any(char not in "0123456789xX+-*/." for char in combined):
+    if any(not (char.isalnum() or char in "+-*/.()") for char in combined):
         raise ValueError("Equation contains invalid characters.")
 
     return lhs, rhs
@@ -113,9 +113,9 @@ def insert_implicit_mul(expr: str) -> str:
     """
 
     expr = expr.replace(" ", "")
-    expr = re.sub(r'(\d)([A-Za-z(])', r'\1*\2', expr)
-    expr = re.sub(r'([A-Za-z)])(\d|\()', r'\1*\2', expr)
-    expr = re.sub(r'(\))([A-Za-z(])', r'\1*\2', expr)
+    expr = re.sub(r'(\d)([xX(])', r'\1*\2', expr)
+    expr = re.sub(r'([xX)])(\d|\()', r'\1*\2', expr)
+    expr = re.sub(r'(\))([xX(])', r'\1*\2', expr)
     return expr
 
 def linearize_ast(node) -> tuple[float, float]:
@@ -148,6 +148,17 @@ def linearize_ast(node) -> tuple[float, float]:
         if isinstance(node.op, ast.UAdd):
             return a, b
         raise ValueError("Unsupported unary operator.")
+    
+    # Handle function calls (only abs supported)
+    if isinstance(node, ast.Call):
+        if not isinstance(node.func, ast.Name) or node.func.id != "abs":
+            raise ValueError("Only abs() is supported.")
+        if len(node.args) != 1:
+            raise ValueError("abs() takes exactly one argument.")
+        a, b = linearize_ast(node.args[0])
+        if a != 0.0:
+            raise ValueError("abs() with x is not supported for linear solver.")
+        return 0.0, abs(b)
 
     # Handle binary operations
     if isinstance(node, ast.BinOp):
@@ -174,6 +185,8 @@ def linearize_ast(node) -> tuple[float, float]:
 
         raise ValueError("Unsupported binary operator.")
     raise ValueError("Unsupported expression node.")
+
+
 
 def reduce_linear(expr: str) -> tuple[float, float]:
     '''

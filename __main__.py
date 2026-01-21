@@ -1,3 +1,3 @@
 from solve import solve
 print(solve("2x - 3 = 7")) # Example usage
-print(solve("2x + 7 + 8 = 7"))
+print(solve("(2x + 7) / 8 = abs(-7)"))
