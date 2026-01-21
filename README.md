@@ -169,6 +169,28 @@ Supported Input
   `sqrt(x)`, `piecewise(cond, expr, ..., default)`
 - Implicit multiplication: `2x`, `3(x+1)`, `(x+1)(x-1)`
 
+Web (Pyodide)
+-------------
+For GitHub Pages or other static hosting, use `web_bundle.py` to run the solver
+in the browser with Pyodide.
+
+Basic usage (Pyodide):
+
+```html
+<script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
+<script>
+async function loadSolver() {
+  const pyodide = await loadPyodide();
+  const response = await fetch("web_bundle.py");
+  const source = await response.text();
+  pyodide.runPython(source);
+  const solve = pyodide.globals.get("solve");
+  console.log(solve("2x + 3 = 7"));
+}
+loadSolver();
+</script>
+```
+
 Project Layout
 --------------
 - `solve.py`: main entry point and dispatcher.
@@ -177,3 +199,4 @@ Project Layout
 - `quadratic.py`, `polynomial.py`: polynomial solvers.
 - `transcendental.py`: numeric root finding for non-polynomial expressions.
 - `nonlinear.py`: nonlinear system solver.
+- `web_bundle.py`: browser-ready bundle for Pyodide.
