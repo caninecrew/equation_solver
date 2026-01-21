@@ -1,6 +1,7 @@
 import linear
 import quadratic
 import parsing
+import polynomial
 from typing import cast
 
 def solve(equation, xmin=None, xmax=None):
@@ -28,9 +29,15 @@ def solve(equation, xmin=None, xmax=None):
                   right=cast(parsing.ast.expr, rhs_ast),
           )
           try:
-                  c0, c1, c2 = parsing.quadraticize_ast(expr_ast)
-                  if c2 != 0.0:
-                          return quadratic.quadratic(c2, c1, c0)
+                  coeffs = parsing.polynomialize_ast(expr_ast)
+                  while len(coeffs) > 1 and abs(coeffs[-1]) < 1e-12:
+                          coeffs.pop()
+                  degree = len(coeffs) - 1
+                  if degree >= 2:
+                          if degree == 2:
+                                  return quadratic.quadratic(coeffs[2], coeffs[1], coeffs[0])
+                          roots = polynomial.real_roots(list(reversed(coeffs)))
+                          return linear.format_solutions(roots)
           except ValueError:
                   pass
 

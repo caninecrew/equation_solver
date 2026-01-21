@@ -305,6 +305,96 @@ def quadraticize_ast(node) -> tuple[float, float, float]:
 
     raise ValueError("Unsupported expression node.")
 
+def polynomialize_ast(node) -> list[float]:
+    """
+    Converts an AST node into polynomial coefficients [c0, c1, ..., cn] for
+    c0 + c1*x + ... + cn*x^n.
+    """
+    def add_poly(p, q):
+        size = max(len(p), len(q))
+        out = [0.0] * size
+        for i in range(size):
+            out[i] = (p[i] if i < len(p) else 0.0) + (q[i] if i < len(q) else 0.0)
+        return out
+
+    def sub_poly(p, q):
+        size = max(len(p), len(q))
+        out = [0.0] * size
+        for i in range(size):
+            out[i] = (p[i] if i < len(p) else 0.0) - (q[i] if i < len(q) else 0.0)
+        return out
+
+    def mul_poly(p, q):
+        out = [0.0] * (len(p) + len(q) - 1)
+        for i, a in enumerate(p):
+            for j, b in enumerate(q):
+                out[i + j] += a * b
+        return out
+
+    def div_poly(p, q):
+        if len(q) != 1:
+            raise ValueError("Division by non-constant is not supported.")
+        if q[0] == 0.0:
+            raise ZeroDivisionError("Division by zero.")
+        return [coef / q[0] for coef in p]
+
+    def pow_poly(p, exp):
+        if exp < 0:
+            raise ValueError("Negative exponents are not supported.")
+        if exp == 0:
+            return [1.0]
+        result = [1.0]
+        base = p[:]
+        power = exp
+        while power > 0:
+            if power % 2 == 1:
+                result = mul_poly(result, base)
+            base = mul_poly(base, base)
+            power //= 2
+        return result
+
+    if isinstance(node, ast.Constant):
+        if not isinstance(node.value, (int, float)):
+            raise ValueError("Only numeric constants supported.")
+        return [float(node.value)]
+
+    if isinstance(node, ast.Name):
+        if node.id != "x":
+            raise ValueError("Only 'x' is supported.")
+        return [0.0, 1.0]
+
+    if isinstance(node, ast.UnaryOp):
+        poly = polynomialize_ast(node.operand)
+        if isinstance(node.op, ast.USub):
+            return [-c for c in poly]
+        if isinstance(node.op, ast.UAdd):
+            return poly
+        raise ValueError("Unsupported unary operator.")
+
+    if isinstance(node, ast.BinOp):
+        left = polynomialize_ast(node.left)
+        right = polynomialize_ast(node.right)
+
+        if isinstance(node.op, ast.Add):
+            return add_poly(left, right)
+        if isinstance(node.op, ast.Sub):
+            return sub_poly(left, right)
+        if isinstance(node.op, ast.Mult):
+            return mul_poly(left, right)
+        if isinstance(node.op, ast.Div):
+            return div_poly(left, right)
+        if isinstance(node.op, ast.Pow):
+            if len(right) != 1:
+                raise ValueError("Exponent must be constant.")
+            exp = right[0]
+            if not float(exp).is_integer():
+                raise ValueError("Exponent must be an integer.")
+            return pow_poly(left, int(exp))
+
+        raise ValueError("Unsupported binary operator.")
+
+    raise ValueError("Unsupported expression node.")
+
 def reduce_linear(expr: str) -> tuple[float, float]:
     '''
     Reduces a linear algebraic expression into the coefficients of 'x' and the constant term.
@@ -448,13 +538,23 @@ def eval_linear_ast(node, x_value):
         raise ValueError("Unsupported binary op.")
     raise ValueError("Unsupported node.")
 
+def eval_poly_coeffs(coeffs, x_value):
+    result = 0.0
+    for coef in reversed(coeffs):
+        result = result * x_value + coef
+    return result
+
+def eval_expr_ast(node, x_value):
+    coeffs = polynomialize_ast(node)
+    return eval_poly_coeffs(coeffs, x_value)
+
 def eval_constraint(node, x_value):
     if not isinstance(node, ast.Compare):
         raise ValueError("Expected Compare node.")
     if len(node.ops) != 1 or len(node.comparators) != 1:
         raise ValueError("Only single comparisons supported.")
-    left = eval_linear_ast(node.left, x_value)
-    right = eval_linear_ast(node.comparators[0], x_value)
+    left = eval_expr_ast(node.left, x_value)
+    right = eval_expr_ast(node.comparators[0], x_value)
     op = node.ops[0]
     if isinstance(op, ast.GtE): return left >= right
     if isinstance(op, ast.Lt): return left < right
