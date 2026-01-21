@@ -98,6 +98,7 @@ def parse_expr(expr: str) -> ast.AST:
         ast.AST: The root AST node representing the expression.
     """
     expr = insert_implicit_mul(expr)  # optional but recommended
+    expr = expr.replace("^", "**")
     tree = ast.parse(expr, mode="eval")
     return tree.body
 
@@ -182,6 +183,10 @@ def linearize_ast(node) -> tuple[float, float]:
             if b2 == 0.0:
                 raise ZeroDivisionError("Division by zero.")
             return a1 / b2, b1 / b2
+        if isinstance(node.op, ast.Pow):
+            if a1 != 0.0 or a2 != 0.0:
+                raise ValueError("Exponentiation with x is not supported.")
+            return 0.0, b1 ** b2
 
         raise ValueError("Unsupported binary operator.")
     raise ValueError("Unsupported expression node.")
