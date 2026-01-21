@@ -98,6 +98,15 @@ def format_intervals(intervals):
       parts.append(f"{left}{low_text}, {high_text}{right}")
   return " U ".join(parts)
 
+def format_solutions(solutions):
+  if solutions == ["ALL_REAL_NUMBERS"]:
+    return "all real numbers"
+  if not solutions:
+    return "no solution"
+  if len(solutions) == 1:
+    return f"{{{_fmt_number(solutions[0])}}}"
+  return "{" + ", ".join(_fmt_number(v) for v in solutions) + "}"
+
 def _constraint_always_true(constraint):
   if not isinstance(constraint, parsing.ast.Compare):
     return False

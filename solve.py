@@ -15,6 +15,7 @@ def solve(equation, xmin=None, xmax=None):
                   intervals = linear.solve_inequality(equation)
                   return linear.format_intervals(intervals)
           # Currently only linear equations are supported at this entry point.
-          return linear.solve_linear(equation) # If it's a string, attempt to solve it as a linear equation
+          solutions = linear.solve_linear(equation) # If it's a string, attempt to solve it as a linear equation
+          return linear.format_solutions(solutions)
   else:
       raise TypeError("Unsupported equation type") # Raise an error for unsupported equation types
