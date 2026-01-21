@@ -117,44 +117,34 @@ def split_terms(expr: str) -> list[str]:
 def reduce_linear(expr):
   """
   Reduces a linear algebraic expression into the coefficients of 'x' and the constant term.
-
-  Args:
-    expr (str): The linear algebraic expression (e.g., "+2x+6").
-
-  Returns:
-    tuple[float, float]: A tuple containing the coefficient of 'x' (a) and the constant term (b).
-
-  Raises:
-    ValueError: If non-linear terms (e.g., 'x' appearing multiple times in a term) are found.
+  Supports terms like 4x, -x, +x, 3*x, and decimals.
   """
-  expr = normalize(expr) # Normalize the expression (e.g., add leading '+')
-  terms = split_terms(expr) # Split the expression into individual terms
+  expr = normalize(expr)
+  terms = split_terms(expr)
 
-  a = 0.0 # Initialize coefficient of 'x'
-  b = 0.0 # Initialize constant term
+  a = 0.0
+  b = 0.0
 
-  for term in terms: # Iterate through each term
-    term = term.replace("*", "") # Remove multiplication signs if present (e.g., 2*x becomes 2x)
+  for term in terms:
+    term = term.replace("*", "")
 
-    if "x" in term: # If 'x' is present in the term, it's an 'x' term
-      if term.count("x") != 1: # Check if 'x' appears more than once in the term
-        raise ValueError("Only linear terms are supported (like 2x, -x, +x).") # Raise error for non-linear 'x' terms
+    if "x" in term:
+      if term.count("x") != 1:
+        raise ValueError("Only linear terms are supported (like 2x, -x, +x).")
 
-      coef_text = term.replace("x", "") # Remove 'x' to get the coefficient text
-
-      if coef_text == "+" or coef_text == "": # Handle cases like '+x' or 'x'
+      coef_text = term.replace("x", "")
+      if coef_text == "+" or coef_text == "":
         coef = 1.0
-      elif coef_text == "-": # Handle case like '-x'
+      elif coef_text == "-":
         coef = -1.0
       else:
-        coef = float(coef_text) # Convert the coefficient text to a float
+        coef = float(coef_text)
 
-      a += coef # Add the coefficient to the total 'a' (coefficient of x)
+      a += coef
+    else:
+      b += float(term)
 
-    else: # If 'x' is not in the term, it's a constant term
-      b += float(term) # Add the constant term to the total 'b'
-
-  return a, b # Return the reduced coefficients (a for x, b for constant)
+  return a, b
 
 def solve_linear(equation):
   """
