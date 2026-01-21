@@ -282,10 +282,13 @@ def _fmt_complex(value):
   imag = value.imag
   if abs(imag) < 1e-9:
     return _fmt_number(real)
-  real_text = _fmt_number(real) if abs(real) >= 1e-9 else "0"
+  has_real = abs(real) >= 1e-9
+  real_text = _fmt_number(real) if has_real else ""
   imag_mag = abs(imag)
-  imag_text = _fmt_number(imag_mag)
+  imag_text = "" if abs(imag_mag - 1.0) < 1e-9 else _fmt_number(imag_mag)
   sign = "+" if imag >= 0 else "-"
+  if not has_real:
+    return f"{sign}{imag_text}i" if sign == "-" else f"{imag_text}i"
   return f"{real_text} {sign} {imag_text}i"
 
 def _dedupe_and_sort(results, eps=1e-9):
