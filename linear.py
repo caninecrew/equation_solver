@@ -2,36 +2,16 @@ import utils
 import parsing
 
 def reduce_linear(expr):
-  """
-  Reduces a linear algebraic expression into the coefficients of 'x' and the constant term.
-  Supports terms like 4x, -x, +x, 3*x, and decimals.
-  """
-  expr = parsing.normalize(expr)
-  terms = parsing.split_terms(expr)
+    """
+    Reduces a linear expression to its coefficients (a, b) for the form a*x + b.
 
-  a = 0.0
-  b = 0.0
+    Args:
+        expr (str): The linear expression as a string.
 
-  for term in terms:
-    term = term.replace("*", "")
-
-    if "x" in term:
-      if term.count("x") != 1:
-        raise ValueError("Only linear terms are supported (like 2x, -x, +x).")
-
-      coef_text = term.replace("x", "")
-      if coef_text == "+" or coef_text == "":
-        coef = 1.0
-      elif coef_text == "-":
-        coef = -1.0
-      else:
-        coef = float(coef_text)
-
-      a += coef
-    else:
-      b += float(term)
-
-  return a, b
+    Returns:
+        tuple[float, float]: A tuple (a, b) representing the coefficients of the linear expression a*x + b.
+    """
+    return parsing.reduce_linear(expr)
 
 def solve_linear(equation):
   """
