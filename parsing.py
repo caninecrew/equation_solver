@@ -87,7 +87,7 @@ def split_terms(expr: str) -> list[str]:
   terms.append(expr[start:]) # Append the last term after the loop finishes
   return terms # Return the list of terms
 
-def parse_expr(expr: str) -> ast.AST:
+def parse_expr(expr: str) -> ast.expr:
     """
     Parses an algebraic expression string into an AST node.
 

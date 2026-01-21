@@ -1,5 +1,6 @@
 import utils
 import parsing
+from typing import cast
 
 def reduce_linear(expr):
     """
@@ -19,9 +20,36 @@ def solve_linear(equation):
   """
 
   lhs, rhs = parsing.split_equation(equation) # Split the equation into left and right sides
+  lhs_ast = parsing.parse_expr(lhs)
+  rhs_ast = parsing.parse_expr(rhs)
+  has_abs = parsing.find_abs_calls(lhs_ast) or parsing.find_abs_calls(rhs_ast)
+
+  if has_abs:
+    expr_ast = parsing.ast.BinOp(
+      left=cast(parsing.ast.expr, lhs_ast),
+      op=parsing.ast.Sub(),
+      right=cast(parsing.ast.expr, rhs_ast),
+    )
+    cases = parsing.build_abs_cases(expr_ast)
+    if not cases:
+      raise ValueError("abs() handling failed to build cases.")
+
+    results = []
+    for case_expr, constraint in cases:
+      a, b = parsing.linearize_ast(case_expr)
+      solutions = solve_linear_from_coeffs(a, b)
+      for sol in solutions:
+        if sol == "ALL_REAL_NUMBERS":
+          # Only keep if constraint is always true.
+          if _constraint_always_true(constraint):
+            results.append(sol)
+          continue
+        if parsing.eval_constraint(constraint, sol):
+          results.append(utils.fix_zero(sol))
+    return results
+
   aL, bL = reduce_linear(lhs) # Reduce the left-hand side to get 'a' and 'b'
   aR, bR = reduce_linear(rhs) # Reduce the right-hand side to get 'a' and 'b'
-
   a = aL - aR # Calculate the coefficient of 'x'
   b = bL - bR # Calculate the constant term
 
@@ -32,6 +60,30 @@ def solve_linear(equation):
     return ["ALL_REAL_NUMBERS"] # The equation is an identity
 
   return [] # If 'a' is zero and 'b' is not zero (e.g., 0=5), there is no solution
+
+def _constraint_always_true(constraint):
+  if not isinstance(constraint, parsing.ast.Compare):
+    return False
+  if len(constraint.ops) != 1 or len(constraint.comparators) != 1:
+    return False
+
+  diff = parsing.ast.BinOp(left=constraint.left, op=parsing.ast.Sub(), right=constraint.comparators[0])
+  a, b = parsing.linearize_ast(diff)
+  if a != 0.0:
+    return False
+
+  op = constraint.ops[0]
+  if isinstance(op, parsing.ast.GtE):
+    return b >= 0.0
+  if isinstance(op, parsing.ast.Gt):
+    return b > 0.0
+  if isinstance(op, parsing.ast.LtE):
+    return b <= 0.0
+  if isinstance(op, parsing.ast.Lt):
+    return b < 0.0
+  if isinstance(op, parsing.ast.Eq):
+    return b == 0.0
+  return False
 
 def solve_linear_from_coeffs(a, b):
     """
