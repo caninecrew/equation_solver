@@ -1,6 +1,5 @@
 import re # Import the regular expressions module
 import ast # Import the abstract syntax tree module
-from sympy import parse_expr # Import the abstract syntax tree module
 
 def split_equation(equation: str) -> tuple[str, str]:
   """
@@ -88,10 +87,23 @@ def split_terms(expr: str) -> list[str]:
   terms.append(expr[start:]) # Append the last term after the loop finishes
   return terms # Return the list of terms
 
+def parse_expr(expr: str) -> ast.AST:
+    """
+    Parses an algebraic expression string into an AST node.
+
+    Args:
+        expr (str): The algebraic expression string.
+
+    Returns:
+        ast.AST: The root AST node representing the expression.
+    """
+    expr = insert_implicit_mul(expr)  # optional but recommended
+    tree = ast.parse(expr, mode="eval")
+    return tree.body
+
 def insert_implicit_mul(expr: str) -> str:
     """
-    Inserts explicit multiplication operators '*' where implicit multiplication is detected.
-    For example, "2x" becomes "2*x" and "3(x + 1)" becomes "3*(x + 1)".
+    Inserts explicit multiplication operators in an algebraic expression where multiplication is implied (e.g., between a number and a variable).
 
     Args:
         expr (str): The algebraic expression string.
@@ -101,11 +113,8 @@ def insert_implicit_mul(expr: str) -> str:
     """
 
     expr = expr.replace(" ", "")
-    # number followed by symbol or '('
     expr = re.sub(r'(\d)([A-Za-z(])', r'\1*\2', expr)
-    # symbol or ')' followed by number or '('
     expr = re.sub(r'([A-Za-z)])(\d|\()', r'\1*\2', expr)
-    # ')' followed by symbol or '('
     expr = re.sub(r'(\))([A-Za-z(])', r'\1*\2', expr)
     return expr
 
@@ -124,12 +133,14 @@ def linearize_ast(node) -> tuple[float, float]:
         if not isinstance(node.value, (int, float)):
             raise ValueError("Only numeric constants supported.")
         return 0.0, float(node.value)
-
+    
+    # Handle variable 'x'
     if isinstance(node, ast.Name):
         if node.id != "x":
             raise ValueError("Only 'x' is supported.")
         return 1.0, 0.0
 
+    # Handle unary operations
     if isinstance(node, ast.UnaryOp):
         a, b = linearize_ast(node.operand)
         if isinstance(node.op, ast.USub):
@@ -138,6 +149,7 @@ def linearize_ast(node) -> tuple[float, float]:
             return a, b
         raise ValueError("Unsupported unary operator.")
 
+    # Handle binary operations
     if isinstance(node, ast.BinOp):
         a1, b1 = linearize_ast(node.left)
         a2, b2 = linearize_ast(node.right)
@@ -164,5 +176,16 @@ def linearize_ast(node) -> tuple[float, float]:
     raise ValueError("Unsupported expression node.")
 
 def reduce_linear(expr: str) -> tuple[float, float]:
+    '''
+    Reduces a linear algebraic expression into the coefficients of 'x' and the constant term.
+    Supports terms like 4x, -x, +x, 3*x, and decimals.
+
+    Args:
+        expr (str): The algebraic expression string.
+    
+    Returns:
+        tuple[float, float]: 
+            A tuple (a, b) where 'a' is the coefficient of 'x' and 'b' is the constant term. 
+    '''
     node = parse_expr(expr)
     return linearize_ast(node)
