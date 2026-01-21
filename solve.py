@@ -3,6 +3,7 @@ import quadratic
 import parsing
 import polynomial
 import transcendental
+import nonlinear
 from typing import cast
 
 def solve(equation, xmin=None, xmax=None):
@@ -18,8 +19,12 @@ def solve(equation, xmin=None, xmax=None):
   if isinstance(equation, (list, tuple)):
           if not all(isinstance(e, str) for e in equation):
                   raise TypeError("All equations must be strings.")
-          solutions = linear.solve_linear_system(equation)
-          return "{" + ", ".join(f"{k}={v}" for k, v in solutions.items()) + "}"
+          try:
+                  solutions = linear.solve_linear_system(equation)
+                  return "{" + ", ".join(f"{k}={v}" for k, v in solutions.items()) + "}"
+          except ValueError:
+                  solutions = nonlinear.solve_nonlinear_system(equation)
+                  return "{" + ", ".join(f"{k}={v}" for k, v in solutions.items()) + "}"
   if isinstance(equation, str): # Check if the equation is a string
           if any(op in equation for op in ["<=", ">=", "<", ">"]):
                   try:

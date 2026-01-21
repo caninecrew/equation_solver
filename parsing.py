@@ -610,26 +610,26 @@ def eval_poly_coeffs(coeffs, x_value):
         result = result * x_value + coef
     return result
 
-def eval_expr_ast(node, x_value):
+def eval_expr_ast_with_env(node, env):
     if isinstance(node, ast.Constant):
         value = node.value
         if not isinstance(value, (int, float)):
             raise ValueError("Only numeric constants supported.")
         return float(value)
     if isinstance(node, ast.Name):
-        if node.id != "x":
-            raise ValueError("Only 'x' is supported.")
-        return float(x_value)
+        if node.id not in env:
+            raise ValueError(f"Unknown variable: {node.id}")
+        return float(env[node.id])
     if isinstance(node, ast.UnaryOp):
-        val = eval_expr_ast(node.operand, x_value)
+        val = eval_expr_ast_with_env(node.operand, env)
         if isinstance(node.op, ast.USub):
             return -val
         if isinstance(node.op, ast.UAdd):
             return val
         raise ValueError("Unsupported unary op.")
     if isinstance(node, ast.BinOp):
-        left = eval_expr_ast(node.left, x_value)
-        right = eval_expr_ast(node.right, x_value)
+        left = eval_expr_ast_with_env(node.left, env)
+        right = eval_expr_ast_with_env(node.right, env)
         if isinstance(node.op, ast.Add): return left + right
         if isinstance(node.op, ast.Sub): return left - right
         if isinstance(node.op, ast.Mult): return left * right
@@ -637,18 +637,18 @@ def eval_expr_ast(node, x_value):
         if isinstance(node.op, ast.Pow): return left ** right
         raise ValueError("Unsupported binary op.")
     if isinstance(node, ast.IfExp):
-        cond = eval_condition_ast(node.test, x_value)
-        return eval_expr_ast(node.body, x_value) if cond else eval_expr_ast(node.orelse, x_value)
+        cond = eval_condition_ast_with_env(node.test, env)
+        return eval_expr_ast_with_env(node.body, env) if cond else eval_expr_ast_with_env(node.orelse, env)
     if isinstance(node, ast.Call):
         if not isinstance(node.func, ast.Name):
             raise ValueError("Unsupported function call.")
         if len(node.args) != 1:
             if node.func.id == "piecewise":
-                return eval_piecewise_call(node, x_value)
+                return eval_piecewise_call(node, env)
             raise ValueError("Only single-argument functions supported.")
         import math
         func = node.func.id
-        arg = eval_expr_ast(node.args[0], x_value)
+        arg = eval_expr_ast_with_env(node.args[0], env)
         if func == "abs":
             return abs(arg)
         if func == "sin":
@@ -668,17 +668,20 @@ def eval_expr_ast(node, x_value):
                 raise ValueError("sqrt() domain error.")
             return math.sqrt(arg)
         if func == "piecewise":
-            return eval_piecewise_call(node, x_value)
+            return eval_piecewise_call(node, env)
         raise ValueError("Unsupported function call.")
     coeffs = polynomialize_ast(node)
-    return eval_poly_coeffs(coeffs, x_value)
+    return eval_poly_coeffs(coeffs, env.get("x", 0.0))
 
-def eval_condition_ast(node, x_value):
+def eval_expr_ast(node, x_value):
+    return eval_expr_ast_with_env(node, {"x": x_value})
+
+def eval_condition_ast_with_env(node, env):
     if isinstance(node, ast.Compare):
         if len(node.ops) != 1 or len(node.comparators) != 1:
             raise ValueError("Only single comparisons supported in conditions.")
-        left = eval_expr_ast(node.left, x_value)
-        right = eval_expr_ast(node.comparators[0], x_value)
+        left = eval_expr_ast_with_env(node.left, env)
+        right = eval_expr_ast_with_env(node.comparators[0], env)
         op = node.ops[0]
         if isinstance(op, ast.GtE): return left >= right
         if isinstance(op, ast.Lt): return left < right
@@ -689,16 +692,19 @@ def eval_condition_ast(node, x_value):
         raise ValueError("Unsupported comparison operator.")
     if isinstance(node, ast.BoolOp):
         if isinstance(node.op, ast.And):
-            return all(eval_condition_ast(v, x_value) for v in node.values)
+            return all(eval_condition_ast_with_env(v, env) for v in node.values)
         if isinstance(node.op, ast.Or):
-            return any(eval_condition_ast(v, x_value) for v in node.values)
+            return any(eval_condition_ast_with_env(v, env) for v in node.values)
         raise ValueError("Unsupported boolean operator.")
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
-        return not eval_condition_ast(node.operand, x_value)
+        return not eval_condition_ast_with_env(node.operand, env)
     # Fallback: treat numeric expression as truthy/falsey.
-    return eval_expr_ast(node, x_value) != 0
+    return eval_expr_ast_with_env(node, env) != 0
 
-def eval_piecewise_call(node, x_value):
+def eval_condition_ast(node, x_value):
+    return eval_condition_ast_with_env(node, {"x": x_value})
+
+def eval_piecewise_call(node, env):
     if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name) or node.func.id != "piecewise":
         raise ValueError("Invalid piecewise call.")
     if len(node.args) < 3 or len(node.args) % 2 == 0:
@@ -706,9 +712,9 @@ def eval_piecewise_call(node, x_value):
     for i in range(0, len(node.args) - 1, 2):
         cond = node.args[i]
         expr = node.args[i + 1]
-        if eval_condition_ast(cond, x_value):
-            return eval_expr_ast(expr, x_value)
-    return eval_expr_ast(node.args[-1], x_value)
+        if eval_condition_ast_with_env(cond, env):
+            return eval_expr_ast_with_env(expr, env)
+    return eval_expr_ast_with_env(node.args[-1], env)
 
 def eval_constraint(node, x_value):
     if not isinstance(node, ast.Compare):
