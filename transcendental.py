@@ -17,12 +17,12 @@ def _bisect(f, a, b, fa, fb, tol=1e-8, max_iter=100):
     mid = (a + b) / 2.0
     try:
       fm = f(mid)
-    except ValueError:
+    except (ValueError, ZeroDivisionError):
       # Domain error: shrink interval.
       mid = (a + mid) / 2.0
       try:
         fm = f(mid)
-      except ValueError:
+      except (ValueError, ZeroDivisionError):
         mid = (mid + b) / 2.0
         fm = f(mid)
     if abs(fm) <= tol:
@@ -44,7 +44,7 @@ def find_real_roots(expr_ast, xmin=-10.0, xmax=10.0, steps=400):
   x0 = xmin
   try:
     f0 = f(x0)
-  except ValueError:
+  except (ValueError, ZeroDivisionError):
     f0 = float("nan")
   if f0 == 0:
     roots.append(x0)
@@ -52,7 +52,7 @@ def find_real_roots(expr_ast, xmin=-10.0, xmax=10.0, steps=400):
     x1 = xmin + i * step
     try:
       f1 = f(x1)
-    except ValueError:
+    except (ValueError, ZeroDivisionError):
       f1 = float("nan")
     if f1 == 0:
       roots.append(x1)
