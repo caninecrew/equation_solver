@@ -320,3 +320,71 @@ def solve_linear_from_coeffs(a, b):
     if b == 0:
         return ["ALL_REAL_NUMBERS"]
     return []
+
+def solve_linear_system(equations):
+  """
+  Solves a linear system of equations with multiple variables.
+  equations: list of strings like ["2x + y = 3", "x - y = 1"].
+  Returns a dict mapping variable name to value.
+  """
+  if not equations:
+    raise ValueError("No equations provided.")
+
+  coeff_rows = []
+  constants = []
+  variables = set()
+
+  for eq in equations:
+    lhs, rhs = parsing.split_equation(eq)
+    lhs_ast = parsing.parse_expr(lhs)
+    rhs_ast = parsing.parse_expr(rhs)
+    cL, kL = parsing.linearize_multi_ast(lhs_ast)
+    cR, kR = parsing.linearize_multi_ast(rhs_ast)
+    coeffs = {}
+    for key, val in cL.items():
+      coeffs[key] = coeffs.get(key, 0.0) + val
+    for key, val in cR.items():
+      coeffs[key] = coeffs.get(key, 0.0) - val
+    const = kL - kR
+    coeff_rows.append(coeffs)
+    constants.append(-const)
+    variables.update(coeffs.keys())
+
+  vars_sorted = sorted(variables)
+  n = len(vars_sorted)
+  if len(coeff_rows) != n:
+    raise ValueError("System must have the same number of equations as variables.")
+
+  # Build augmented matrix.
+  matrix = []
+  for coeffs, const in zip(coeff_rows, constants):
+    row = [coeffs.get(v, 0.0) for v in vars_sorted]
+    row.append(const)
+    matrix.append(row)
+
+  # Gaussian elimination.
+  for col in range(n):
+    pivot = col
+    for row in range(col, n):
+      if abs(matrix[row][col]) > abs(matrix[pivot][col]):
+        pivot = row
+    if abs(matrix[pivot][col]) < 1e-12:
+      raise ValueError("System is singular or underdetermined.")
+    if pivot != col:
+      matrix[col], matrix[pivot] = matrix[pivot], matrix[col]
+
+    pivot_val = matrix[col][col]
+    matrix[col] = [val / pivot_val for val in matrix[col]]
+
+    for row in range(n):
+      if row == col:
+        continue
+      factor = matrix[row][col]
+      if abs(factor) < 1e-12:
+        continue
+      matrix[row] = [
+        val - factor * matrix[col][i] for i, val in enumerate(matrix[row])
+      ]
+
+  solution = {var: matrix[i][-1] for i, var in enumerate(vars_sorted)}
+  return solution

@@ -147,9 +147,9 @@ def insert_implicit_mul(expr: str) -> str:
     """
 
     expr = expr.replace(" ", "")
-    expr = re.sub(r'(\d)([xX(])', r'\1*\2', expr)
-    expr = re.sub(r'([xX)])(\d|\()', r'\1*\2', expr)
-    expr = re.sub(r'(\))([xX(])', r'\1*\2', expr)
+    expr = re.sub(r'(\d)([A-Za-z(])', r'\1*\2', expr)
+    expr = re.sub(r'([A-Za-z)])(\d|\()', r'\1*\2', expr)
+    expr = re.sub(r'(\))([A-Za-z(])', r'\1*\2', expr)
     return expr
 
 def linearize_ast(node) -> tuple[float, float]:
@@ -302,6 +302,70 @@ def quadraticize_ast(node) -> tuple[float, float, float]:
             raise ValueError("Only exponent 2 is supported for x.")
 
         raise ValueError("Unsupported binary operator.")
+
+    raise ValueError("Unsupported expression node.")
+
+def linearize_multi_ast(node) -> tuple[dict, float]:
+    """
+    Converts an AST node into linear coefficients for multiple variables.
+    Returns (coeffs, constant) for sum(coeffs[var] * var) + constant.
+    """
+    def add(c1, k1, c2, k2):
+        coeffs = dict(c1)
+        for key, val in c2.items():
+            coeffs[key] = coeffs.get(key, 0.0) + val
+        return coeffs, k1 + k2
+
+    def sub(c1, k1, c2, k2):
+        coeffs = dict(c1)
+        for key, val in c2.items():
+            coeffs[key] = coeffs.get(key, 0.0) - val
+        return coeffs, k1 - k2
+
+    def scale(coeffs, k, factor):
+        return {v: c * factor for v, c in coeffs.items()}, k * factor
+
+    if isinstance(node, ast.Constant):
+        if not isinstance(node.value, (int, float)):
+            raise ValueError("Only numeric constants supported.")
+        return {}, float(node.value)
+
+    if isinstance(node, ast.Name):
+        return {node.id: 1.0}, 0.0
+
+    if isinstance(node, ast.UnaryOp):
+        coeffs, k = linearize_multi_ast(node.operand)
+        if isinstance(node.op, ast.USub):
+            return scale(coeffs, k, -1.0)
+        if isinstance(node.op, ast.UAdd):
+            return coeffs, k
+        raise ValueError("Unsupported unary operator.")
+
+    if isinstance(node, ast.BinOp):
+        c1, k1 = linearize_multi_ast(node.left)
+        c2, k2 = linearize_multi_ast(node.right)
+
+        if isinstance(node.op, ast.Add):
+            return add(c1, k1, c2, k2)
+        if isinstance(node.op, ast.Sub):
+            return sub(c1, k1, c2, k2)
+        if isinstance(node.op, ast.Mult):
+            if c1 and c2:
+                raise ValueError("Nonlinear term detected in multiplication.")
+            if c2:
+                return scale(c2, k2, k1)
+            return scale(c1, k1, k2)
+        if isinstance(node.op, ast.Div):
+            if c2:
+                raise ValueError("Division by non-constant is not supported.")
+            if k2 == 0.0:
+                raise ZeroDivisionError("Division by zero.")
+            return scale(c1, k1, 1.0 / k2)
+
+        raise ValueError("Unsupported binary operator.")
+
+    if isinstance(node, ast.Call):
+        raise ValueError("Functions are not supported in multi-variable linearization.")
 
     raise ValueError("Unsupported expression node.")
 

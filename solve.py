@@ -15,6 +15,11 @@ def solve(equation, xmin=None, xmax=None):
     xmin (float, optional): Minimum value for the solution range. Defaults to None.
     xmax (float, optional): Maximum value for the solution range. Defaults to None.
   """
+  if isinstance(equation, (list, tuple)):
+          if not all(isinstance(e, str) for e in equation):
+                  raise TypeError("All equations must be strings.")
+          solutions = linear.solve_linear_system(equation)
+          return "{" + ", ".join(f"{k}={v}" for k, v in solutions.items()) + "}"
   if isinstance(equation, str): # Check if the equation is a string
           if any(op in equation for op in ["<=", ">=", "<", ">"]):
                   intervals = linear.solve_inequality(equation)
