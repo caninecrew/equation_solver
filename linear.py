@@ -40,7 +40,7 @@ def solve_linear(equation):
           continue
         if all(parsing.eval_constraint(c, sol) for c in constraints):
           results.append(utils.fix_zero(sol))
-    return results
+    return _dedupe_and_sort(results)
 
   aL, bL = reduce_linear(lhs) # Reduce the left-hand side to get 'a' and 'b'
   aR, bR = reduce_linear(rhs) # Reduce the right-hand side to get 'a' and 'b'
@@ -48,7 +48,7 @@ def solve_linear(equation):
   b = bL - bR # Calculate the constant term
 
   if a != 0: # If the coefficient of 'x' is not zero
-    return [utils.fix_zero(-b / a)] # Return the single root
+    return _dedupe_and_sort([utils.fix_zero(-b / a)]) # Return the single root
 
   if b == 0: # If both 'a' and 'b' are zero (e.g., 0=0)
     return ["ALL_REAL_NUMBERS"] # The equation is an identity
@@ -80,6 +80,25 @@ def _constraint_always_true(constraint):
   if isinstance(op, parsing.ast.Eq):
     return b == 0.0
   return False
+
+def _dedupe_and_sort(results, eps=1e-9):
+  if not results:
+    return []
+
+  if "ALL_REAL_NUMBERS" in results:
+    return ["ALL_REAL_NUMBERS"]
+
+  numeric = [r for r in results if isinstance(r, (int, float))]
+  if not numeric:
+    return []
+
+  numeric.sort()
+  deduped = [numeric[0]]
+  for value in numeric[1:]:
+    if abs(value - deduped[-1]) > eps:
+      deduped.append(value)
+
+  return [utils.fix_zero(v) for v in deduped]
 
 def solve_linear_from_coeffs(a, b):
     """
