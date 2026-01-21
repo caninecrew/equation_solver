@@ -2,6 +2,7 @@ import linear
 import quadratic
 import parsing
 import polynomial
+import transcendental
 from typing import cast
 
 def solve(equation, xmin=None, xmax=None):
@@ -38,6 +39,13 @@ def solve(equation, xmin=None, xmax=None):
                                   return quadratic.quadratic(coeffs[2], coeffs[1], coeffs[0])
                           roots = polynomial.real_roots(list(reversed(coeffs)))
                           return linear.format_solutions(roots)
+          except ValueError:
+                  pass
+
+          # Fallback to transcendental root finding.
+          try:
+                  roots = transcendental.find_real_roots(expr_ast, xmin or -10.0, xmax or 10.0)
+                  return linear.format_solutions(roots)
           except ValueError:
                   pass
 

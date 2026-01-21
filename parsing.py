@@ -545,6 +545,54 @@ def eval_poly_coeffs(coeffs, x_value):
     return result
 
 def eval_expr_ast(node, x_value):
+    if isinstance(node, ast.Constant):
+        value = node.value
+        if not isinstance(value, (int, float)):
+            raise ValueError("Only numeric constants supported.")
+        return float(value)
+    if isinstance(node, ast.Name):
+        if node.id != "x":
+            raise ValueError("Only 'x' is supported.")
+        return float(x_value)
+    if isinstance(node, ast.UnaryOp):
+        val = eval_expr_ast(node.operand, x_value)
+        if isinstance(node.op, ast.USub):
+            return -val
+        if isinstance(node.op, ast.UAdd):
+            return val
+        raise ValueError("Unsupported unary op.")
+    if isinstance(node, ast.BinOp):
+        left = eval_expr_ast(node.left, x_value)
+        right = eval_expr_ast(node.right, x_value)
+        if isinstance(node.op, ast.Add): return left + right
+        if isinstance(node.op, ast.Sub): return left - right
+        if isinstance(node.op, ast.Mult): return left * right
+        if isinstance(node.op, ast.Div): return left / right
+        if isinstance(node.op, ast.Pow): return left ** right
+        raise ValueError("Unsupported binary op.")
+    if isinstance(node, ast.Call):
+        if not isinstance(node.func, ast.Name):
+            raise ValueError("Unsupported function call.")
+        if len(node.args) != 1:
+            raise ValueError("Only single-argument functions supported.")
+        import math
+        func = node.func.id
+        arg = eval_expr_ast(node.args[0], x_value)
+        if func == "abs":
+            return abs(arg)
+        if func == "sin":
+            return math.sin(arg)
+        if func == "cos":
+            return math.cos(arg)
+        if func == "tan":
+            return math.tan(arg)
+        if func == "log":
+            return math.log(arg)
+        if func == "exp":
+            return math.exp(arg)
+        if func == "sqrt":
+            return math.sqrt(arg)
+        raise ValueError("Unsupported function call.")
     coeffs = polynomialize_ast(node)
     return eval_poly_coeffs(coeffs, x_value)
 
